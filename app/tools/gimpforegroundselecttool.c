@@ -48,7 +48,6 @@
 #include "gimpforegroundselecttool.h"
 #include "gimpforegroundselectoptions.h"
 #include "gimptoolcontrol.h"
-
 #include "gimp-intl.h"
 
 
@@ -601,11 +600,37 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
   GimpChannel                 *mask;
   const GimpVector2           *points;
   gint                         n_points;
-
+  GimpLayer *new_layer;
   drawable  = gimp_image_get_active_drawable (image);
   fg_select = GIMP_FOREGROUND_SELECT_TOOL (free_sel);
   options   = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (free_sel);
 
+  
+  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
+                               _("New Layer"));
+  
+  new_layer = gimp_layer_new (image,
+                              gimp_image_get_width (image),
+                              gimp_image_get_height (image),
+                              gimp_image_base_type_with_alpha (image),
+                              NULL, 1.0, GIMP_NORMAL_MODE);
+
+  gimp_image_add_layer (image, new_layer,
+                        GIMP_IMAGE_ACTIVE_PARENT, -1, TRUE);
+  
+  
+  gimp_image_undo_group_end (image);
+  
+  //gimp_layer_add_alpha(gimp_image_get_active_layer(image));
+  //GimpImageType
+  /*const gchar* name = "abc";
+  GimpLayer *layer;
+  layer = gimp_layer_new(image, 10, 10, GIMP_RGBA_IMAGE, name, 1, GIMP_NORMAL_MODE);
+  
+            gimp_image_add_layer (image, layer,
+                        GIMP_IMAGE_ACTIVE_PARENT, -1, FALSE);
+  //gimp_image_add_layer(image, )
+  */
   if (fg_select->idle_id)
     {
       g_source_remove (fg_select->idle_id);

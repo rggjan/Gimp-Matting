@@ -27,6 +27,7 @@
 #include "base/siox.h"
 #include "base/tile-manager.h"
 
+
 #include "gimpchannel.h"
 #include "gimpdrawable.h"
 #include "gimpdrawable-foreground-extract.h"
@@ -34,6 +35,8 @@
 #include "gimpprogress.h"
 
 #include "gimp-intl.h"
+//#include "libgimp/gimptile.h"
+//#include "libgimp/gimppixelrgn.h"
 
 
 /*  public functions  */
@@ -45,6 +48,11 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
                                   GimpProgress              *progress)
 {
   SioxState    *state;
+  
+
+    g_print("This is a test 11\n");
+
+  
   const gdouble sensitivity[3] = { SIOX_DEFAULT_SENSITIVITY_L,
                                    SIOX_DEFAULT_SENSITIVITY_A,
                                    SIOX_DEFAULT_SENSITIVITY_B };
@@ -69,6 +77,9 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
 
       gimp_drawable_foreground_extract_siox_done (state);
     }
+  
+  
+
 }
 
 SioxState *
@@ -82,10 +93,51 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
+  
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
   g_return_val_if_fail (gimp_item_is_attached (GIMP_ITEM (drawable)), NULL);
 
+  //tile_manager_get
+  //tile_manager_get_tile()
+  //pixel_region_get_col()
+  //gimp_tile_cache_size()
+  //gimp_pixel_rgn_get_pixel()
+  //gimp_pixel_rgn_get_pixel
+  
+    PixelRegion region;
+  gpointer    pr;
+  gint        row, col;
+  
+    pixel_region_init (&region, gimp_drawable_get_tiles(drawable), 0, 0, 300, 300, TRUE);
+
+  g_printerr ("fgextract step #2 -> %d clusters\n", region.bytes);
+  g_print("This is a test\n");
+  printf("abc");
+  for (pr = pixel_regions_register (1, &region);
+       pr != NULL; pr = pixel_regions_process (pr))
+    {
+      guchar *data = region.data;
+
+      for (row = 0; row < region.h; row++)
+        {
+          guchar *d = data;
+
+          /* everything that fits the mask is in the image */
+          for (col = 0; col < region.w; col++, d+=3)
+            {
+              d[0]=0;
+              d[1]=255;
+              d[2]=0;
+            }
+
+          data += region.rowstride;
+        }
+    }
+  
+  
+  gimp_drawable_update (drawable, 0, 0, 300, 300);
+  
   if (gimp_drawable_is_indexed (drawable))
     colormap = gimp_drawable_get_colormap (drawable);
 
@@ -121,6 +173,10 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
 {
   gint x1, y1;
   gint x2, y2;
+  
+    PixelRegion region;
+  gpointer    pr;
+  gint        row, col;
 
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
   g_return_if_fail (gimp_drawable_bytes (mask) == 1);
@@ -153,7 +209,36 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
   if (progress)
     gimp_progress_end (progress);
 
-  gimp_drawable_update (mask, x1, y1, x2, y2);
+/* start */
+
+
+
+  pixel_region_init (&region, gimp_drawable_get_tiles(mask), 0, 0, 300, 300, TRUE);
+
+  for (pr = pixel_regions_register (1, &region);
+       pr != NULL; pr = pixel_regions_process (pr))
+    {
+      guchar *data = region.data;
+
+      for (row = 0; row < region.h; row++)
+        {
+          guchar *d = data;
+
+          // everything that fits the mask is in the image
+          for (col = 0; col < region.w; col++, d++)
+            {
+              *d = col*2;
+            }
+
+          data += region.rowstride;
+        }
+    }
+
+  
+  g_print("This is a test 2\n");
+  printf("abc");
+/* end */
+  gimp_drawable_update (mask, 0, 0, 100, 100);
 }
 
 void
