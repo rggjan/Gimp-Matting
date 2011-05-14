@@ -46,6 +46,8 @@ struct _GimpForegroundSelectTool
   GimpChannel        *mask;
   SioxState          *state;
   SioxRefinementType  refinement;
+  
+  GimpLayer          *result_layer;
 };
 
 struct _GimpForegroundSelectToolClass

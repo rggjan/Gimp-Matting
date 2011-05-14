@@ -38,7 +38,6 @@
 //#include "libgimp/gimptile.h"
 //#include "libgimp/gimppixelrgn.h"
 
-
 /*  public functions  */
 
 void
@@ -104,6 +103,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   //gimp_tile_cache_size()
   //gimp_pixel_rgn_get_pixel()
   //gimp_pixel_rgn_get_pixel
+/*
   
     PixelRegion region;
   gpointer    pr;
@@ -123,7 +123,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
         {
           guchar *d = data;
 
-          /* everything that fits the mask is in the image */
+          // everything that fits the mask is in the image
           for (col = 0; col < region.w; col++, d+=3)
             {
               d[0]=0;
@@ -137,6 +137,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   
   
   gimp_drawable_update (drawable, 0, 0, 300, 300);
+*/
   
   if (gimp_drawable_is_indexed (drawable))
     colormap = gimp_drawable_get_colormap (drawable);
@@ -212,7 +213,7 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
 /* start */
 
 
-
+/*
   pixel_region_init (&region, gimp_drawable_get_tiles(mask), 0, 0, 300, 300, TRUE);
 
   for (pr = pixel_regions_register (1, &region);
@@ -236,9 +237,9 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
 
   
   g_print("This is a test 2\n");
-  printf("abc");
+  printf("abc");*/
 /* end */
-  gimp_drawable_update (mask, 0, 0, 100, 100);
+  gimp_drawable_update (mask, x1, y1, x2, y2);
 }
 
 void

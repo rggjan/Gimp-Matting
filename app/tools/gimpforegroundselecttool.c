@@ -37,6 +37,8 @@
 #include "core/gimpchannel-select.h"
 #include "core/gimpdrawable-foreground-extract.h"
 #include "core/gimpimage.h"
+#include "core/gimpimage-undo.h"
+#include "core/gimplayer.h"
 #include "core/gimpprogress.h"
 #include "core/gimpscanconvert.h"
 
@@ -189,7 +191,7 @@ gimp_foreground_select_tool_init (GimpForegroundSelectTool *fg_select)
 
   gimp_tool_control_set_action_value_2 (tool->control,
                                         "tools/tools-foreground-select-brush-size-set");
-
+  
   fg_select->idle_id = 0;
   fg_select->stroke  = NULL;
   fg_select->strokes = NULL;
@@ -263,6 +265,9 @@ gimp_foreground_select_tool_control (GimpTool       *tool,
           {
             gimp_drawable_foreground_extract_siox_done (fg_select->state);
             fg_select->state = NULL;
+            
+            g_object_unref (fg_select->result_layer);
+            fg_select->result_layer = NULL;
           }
 
         tool->display = NULL;
@@ -600,26 +605,12 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
   GimpChannel                 *mask;
   const GimpVector2           *points;
   gint                         n_points;
-  GimpLayer *new_layer;
+
   drawable  = gimp_image_get_active_drawable (image);
   fg_select = GIMP_FOREGROUND_SELECT_TOOL (free_sel);
   options   = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (free_sel);
 
-  
-  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
-                               _("New Layer"));
-  
-  new_layer = gimp_layer_new (image,
-                              gimp_image_get_width (image),
-                              gimp_image_get_height (image),
-                              gimp_image_base_type_with_alpha (image),
-                              NULL, 1.0, GIMP_NORMAL_MODE);
 
-  gimp_image_add_layer (image, new_layer,
-                        GIMP_IMAGE_ACTIVE_PARENT, -1, TRUE);
-  
-  
-  gimp_image_undo_group_end (image);
   
   //gimp_layer_add_alpha(gimp_image_get_active_layer(image));
   //GimpImageType
@@ -695,6 +686,15 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
 
       if (fg_select->state)
         g_warning ("state should be NULL here");
+      
+      if (fg_select->result_layer)
+        g_warning ("result layer should be NULL here");    
+      
+      fg_select->result_layer = gimp_layer_new (image,
+                                gimp_image_get_width (image),
+                                gimp_image_get_height (image),
+                                gimp_image_base_type_with_alpha (image),
+                                NULL, 1.0, GIMP_NORMAL_MODE);
 
       fg_select->state =
         gimp_drawable_foreground_extract_siox_init (drawable,
@@ -768,17 +768,29 @@ gimp_foreground_select_tool_apply (GimpForegroundSelectTool *fg_select,
   GimpTool             *tool    = GIMP_TOOL (fg_select);
   GimpSelectionOptions *options = GIMP_SELECTION_TOOL_GET_OPTIONS (tool);
   GimpImage            *image   = gimp_display_get_image (display);
-
+  
   g_return_if_fail (fg_select->mask != NULL);
+  g_return_if_fail (fg_select->result_layer != NULL);
+    
+  /*gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
+                               _("Extract Foreground"));*/
 
-  gimp_channel_select_channel (gimp_image_get_mask (image),
+  gimp_image_add_layer (image, fg_select->result_layer,
+                        GIMP_IMAGE_ACTIVE_PARENT, -1, TRUE);
+/*
+  
+  gimp_image_undo_group_end (image);
+*/
+
+ /* gimp_channel_select_channel (gimp_image_get_mask (image),
                                C_("command", "Foreground Select"),
                                fg_select->mask, 0, 0,
                                options->operation,
                                options->feather,
                                options->feather_radius,
-                               options->feather_radius);
+                               options->feather_radius);*/
 
+  
   gimp_tool_control (tool, GIMP_TOOL_ACTION_HALT, display);
 
   gimp_image_flush (image);
