@@ -35,8 +35,6 @@
 #include "gimpprogress.h"
 
 #include "gimp-intl.h"
-//#include "libgimp/gimptile.h"
-//#include "libgimp/gimppixelrgn.h"
 
 /*  public functions  */
 
@@ -45,13 +43,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
                                   GimpForegroundExtractMode  mode,
                                   GimpDrawable              *mask,
                                   GimpProgress              *progress)
-{
-  SioxState    *state;
-  
-
-    g_print("This is a test 11\n");
-
-  
+{ 
   const gdouble sensitivity[3] = { SIOX_DEFAULT_SENSITIVITY_L,
                                    SIOX_DEFAULT_SENSITIVITY_A,
                                    SIOX_DEFAULT_SENSITIVITY_B };
@@ -59,7 +51,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
   g_return_if_fail (mode == GIMP_FOREGROUND_EXTRACT_SIOX);
 
-  state =
+  /*state =
     gimp_drawable_foreground_extract_siox_init (drawable,
                                                 0, 0,
                                                 gimp_item_get_width  (GIMP_ITEM (mask)),
@@ -76,7 +68,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
 
       gimp_drawable_foreground_extract_siox_done (state);
     }
-  
+  */
   
 
 }
@@ -92,6 +84,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
+  SioxState    *state;
   
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
@@ -165,6 +158,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
 
 void
 gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
+                                       GimpLayer          *result_layer,
                                        SioxState          *state,
                                        SioxRefinementType  refinement,
                                        gint                smoothness,
@@ -201,13 +195,13 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
       y2 = gimp_item_get_height (GIMP_ITEM (mask));
     }
 
-/*
+
   siox_foreground_extract (state, refinement,
                            gimp_drawable_get_tiles (mask), x1, y1, x2, y2,
                            smoothness, sensitivity, multiblob,
                            (SioxProgressFunc) gimp_progress_set_value,
-                           progress);
-*/
+                           progress, gimp_drawable_get_tiles(GIMP_DRAWABLE(result_layer)));
+
 
   if (progress)
     gimp_progress_end (progress);
@@ -241,6 +235,8 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
   g_print("This is a test 2\n");
   printf("abc");*/
 /* end */
+
+  gimp_drawable_update (GIMP_DRAWABLE(result_layer), x1, y1, x2, y2);
   gimp_drawable_update (mask, x1, y1, x2, y2);
 }
 

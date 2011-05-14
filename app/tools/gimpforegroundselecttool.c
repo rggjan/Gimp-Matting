@@ -656,6 +656,7 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
 
       if (fg_select->state)
         gimp_drawable_foreground_extract_siox (GIMP_DRAWABLE (mask),
+                                               fg_select->result_layer,
                                                fg_select->state,
                                                fg_select->refinement,
                                                options->smoothness,

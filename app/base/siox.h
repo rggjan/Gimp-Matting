@@ -68,7 +68,8 @@ void        siox_foreground_extract (SioxState          *state,
                                      const gdouble       sensitivity[3],
                                      gboolean            multiblob,
                                      SioxProgressFunc    progress_callback,
-                                     gpointer            progress_data);
+                                     gpointer            progress_data,
+				     TileManager        *result_layer);
 void        siox_done               (SioxState          *state);
 
 void        siox_drb                (SioxState          *state,

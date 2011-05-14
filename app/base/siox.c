@@ -41,6 +41,7 @@
 #include "libgimpmath/gimpmath.h"
 
 #include "base-types.h"
+#include "core/core-types.h"
 
 #include "paint-funcs/paint-funcs.h"
 
@@ -830,10 +831,12 @@ siox_foreground_extract (SioxState          *state,
                          const gdouble       sensitivity[3],
                          gboolean            multiblob,
                          SioxProgressFunc    progress_callback,
-                         gpointer            progress_data)
+                         gpointer            progress_data,
+                         TileManager        *result_layer)
 {
-  PixelRegion  srcPR;
-  PixelRegion  mapPR;
+  PixelRegion  src;
+  PixelRegion  dest;
+  PixelRegion  mask_region;
   gpointer     pr;
   gint         row, col;
   gint         x, y;
@@ -864,406 +867,40 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (x + width <= tile_manager_width (mask));
   g_return_if_fail (y + height <= tile_manager_height (mask));
 
-  limits[0] = sensitivity[0];
-  limits[1] = sensitivity[1];
-  limits[2] = sensitivity[2];
+  pixel_region_init (&src, state->pixels, x, y, width, height, FALSE);
+  pixel_region_init (&dest, result_layer, x, y, width, height, TRUE);
+  pixel_region_init (&mask_region, mask, x, y, width, height, FALSE);
 
-#ifdef SIOX_DEBUG
-  g_printerr ("siox.c: limits %f %f %f\n", limits[0], limits[1], limits[2]);
-#endif
-
-  clustersize = get_clustersize (limits);
-
-  siox_progress_update (progress_callback, progress_data, 0.0);
-  total = width * height;
-
-  if (refinement & SIOX_REFINEMENT_CHANGE_SENSITIVITY)
-    {
-      /* trigger complete recalculation */
-      refinement = (SIOX_REFINEMENT_ADD_BACKGROUND |
-                    SIOX_REFINEMENT_ADD_FOREGROUND);
-    }
-
-  if (refinement & SIOX_REFINEMENT_ADD_FOREGROUND)
-    g_hash_table_foreach_remove (state->cache, siox_cache_remove_bg, NULL);
-
-  if (refinement & SIOX_REFINEMENT_ADD_BACKGROUND)
-    g_hash_table_foreach_remove (state->cache, siox_cache_remove_fg, NULL);
-
-  if (! state->bgsig)
-    refinement |= SIOX_REFINEMENT_ADD_BACKGROUND;
-
-  if (! state->fgsig)
-    refinement |= SIOX_REFINEMENT_ADD_FOREGROUND;
-
-  if (refinement & (SIOX_REFINEMENT_ADD_FOREGROUND |
-                    SIOX_REFINEMENT_ADD_BACKGROUND))
-    {
-      /* count given foreground and background pixels */
-      pixel_region_init (&mapPR, mask, x, y, width, height, FALSE);
-      total = width * height;
-
-      for (pr = pixel_regions_register (1, &mapPR), pixels = 0, n = 0;
-           pr != NULL;
-           pr = pixel_regions_process (pr),n++)
-        {
-          const guchar *map = mapPR.data;
-
-          for (row = 0; row < mapPR.h; row++)
-            {
-              const guchar *m = map;
-
-              for (col = 0; col < mapPR.w; col++, m++)
-                {
-                  if (*m < SIOX_LOW)
-                    {
-                      surebgcount++;
-                    }
-                  else if (*m > SIOX_HIGH)
-                    {
-                      surefgcount++;
-                    }
-                }
-
-              map += mapPR.rowstride;
-            }
-
-            pixels += mapPR.w * mapPR.h;
-
-            if (n % 16 == 0)
-              siox_progress_update (progress_callback, progress_data,
-                                    0.1 * ((gdouble) pixels / (gdouble) total));
-        }
-
-#ifdef SIOX_DEBUG
-      g_printerr ("siox.c: usermask #surebg=%d #surefg=%d\n",
-                  surebgcount, surefgcount);
-#endif
-
-      if (refinement & SIOX_REFINEMENT_ADD_FOREGROUND)
-        surefg = g_new (lab, surefgcount);
-
-      if (refinement & SIOX_REFINEMENT_ADD_BACKGROUND)
-        surebg = g_new (lab, surebgcount);
-
-      /* create inputs for color signatures */
-      pixel_region_init (&srcPR, state->pixels,
-                         x - state->offset_x, y - state->offset_y,
-                         width, height, FALSE);
-      pixel_region_init (&mapPR, mask,
-                         x, y, width, height, FALSE);
-
-      pr = pixel_regions_register (2, &srcPR, &mapPR);
-
-      if (! (refinement & SIOX_REFINEMENT_ADD_FOREGROUND))
-        {
-          gint i = 0;
-
-          for (pixels = 0, n = 0;
-               pr != NULL;
-               pr = pixel_regions_process (pr), n++)
-            {
-              const guchar *src = srcPR.data;
-              const guchar *map = mapPR.data;
-
-              for (row = 0; row < srcPR.h; row++)
-                {
-                  const guchar *s = src;
-                  const guchar *m = map;
-
-                  for (col = 0; col < srcPR.w; col++, m++, s += state->bpp)
-                    {
-                      if (*m < SIOX_LOW)
-                        {
-                          calc_lab (s, state->bpp, state->colormap, surebg + i);
-                          i++;
-                        }
-                    }
-
-                  src += srcPR.rowstride;
-                  map += mapPR.rowstride;
-                }
-
-              pixels += mapPR.w * mapPR.h;
-
-              if (n % 16 == 0)
-                siox_progress_update (progress_callback, progress_data,
-                                      0.1 + 0.1 * ((gdouble) pixels /
-                                                   (gdouble) total));
-            }
-        }
-      else if (! (refinement & SIOX_REFINEMENT_ADD_BACKGROUND))
-        {
-          gint i = 0;
-
-          for (pixels = 0, n = 0;
-               pr != NULL;
-               pr = pixel_regions_process (pr), n++)
-            {
-              const guchar *src = srcPR.data;
-              const guchar *map = mapPR.data;
-
-              for (row = 0; row < srcPR.h; row++)
-                {
-                  const guchar *s = src;
-                  const guchar *m = map;
-
-                  for (col = 0; col < srcPR.w; col++, m++, s += state->bpp)
-                    {
-                      if (*m > SIOX_HIGH)
-                        {
-                          calc_lab (s, state->bpp, state->colormap, surefg + i);
-                          i++;
-                        }
-                    }
-
-                  src += srcPR.rowstride;
-                  map += mapPR.rowstride;
-                }
-
-              pixels += mapPR.w * mapPR.h;
-
-              if (n % 16 == 0)
-                siox_progress_update (progress_callback, progress_data,
-                                      0.1 + 0.1 * ((gdouble) pixels /
-                                                   (gdouble) total));
-            }
-        }
-      else   /* both changed */
-        {
-          gint i = 0;
-          gint j = 0;
-
-          for (pixels = 0, n = 0;
-               pr != NULL;
-               pr = pixel_regions_process (pr), n++)
-            {
-              const guchar *src = srcPR.data;
-              const guchar *map = mapPR.data;
-
-              for (row = 0; row < srcPR.h; row++)
-                {
-                  const guchar *s = src;
-                  const guchar *m = map;
-
-                  for (col = 0; col < srcPR.w; col++, m++, s += state->bpp)
-                    {
-                      if (*m < SIOX_LOW)
-                        {
-                          calc_lab (s, state->bpp, state->colormap, surebg + i);
-                          i++;
-                        }
-                      else if (*m > SIOX_HIGH)
-                        {
-                          calc_lab (s, state->bpp, state->colormap, surefg + j);
-                          j++;
-                        }
-                    }
-
-                  src += srcPR.rowstride;
-                  map += mapPR.rowstride;
-                }
-
-              pixels += mapPR.w * mapPR.h;
-
-              if (n % 16 == 0)
-                siox_progress_update (progress_callback, progress_data,
-                                      0.1 + 0.1 * ((gdouble) pixels /
-                                                   (gdouble) total));
-            }
-        }
-
-      if (refinement & SIOX_REFINEMENT_ADD_BACKGROUND)
-        {
-          /* Create color signature for the background */
-          state->bgsig = create_signature (surebg, surebgcount,
-                                           &state->bgsiglen, limits,
-                                           state->bpp == 1 ?
-                                           SIOX_GRAY_DIMS : SIOX_COLOR_DIMS,
-                                           progress_callback,
-                                           progress_data,
-                                           0.3);
-          g_free (surebg);
-
-          if (state->bgsiglen < 1)
-            {
-              g_free (surefg);
-              return;
-            }
-        }
-
-      siox_progress_update (progress_callback, progress_data, 0.4);
-
-      if (refinement & SIOX_REFINEMENT_ADD_FOREGROUND)
-        {
-          /* Create color signature for the foreground */
-          state->fgsig = create_signature (surefg, surefgcount,
-                                           &state->fgsiglen, limits,
-                                           state->bpp == 1 ?
-                                           SIOX_GRAY_DIMS : SIOX_COLOR_DIMS,
-                                           progress_callback,
-                                           progress_data,
-                                           0.45);
-          g_free (surefg);
-        }
-  }
-
-  siox_progress_update (progress_callback, progress_data, 0.5);
-
-  /* Reduce the working area to the region of interest */
-  gimp_rectangle_intersect (x1, y1, x2 - x1, y2 - y1,
-                            x, y, width, height,
-                            &x, &y, &width, &height);
-
-  /* Classify - the cached way....Better: Tree traversation? */
-
-#ifdef SIOX_DEBUG
-  gint hits = 0;
-  gint miss = 0;
-#endif
-
-  pixel_region_init (&srcPR, state->pixels,
-                     x - state->offset_x, y - state->offset_y, width, height,
-                     FALSE);
-  pixel_region_init (&mapPR, mask, x, y, width, height, TRUE);
+  g_return_if_fail (src.bytes >= 3 && dest.bytes >= 4 && mask_region.bytes == 1); // TODO check if indexed etc...
 
   total = width * height;
-
-  for (pr = pixel_regions_register (2, &srcPR, &mapPR), n = 0, pixels = 0;
-       pr != NULL;
-       pr = pixel_regions_process (pr), n++)
+  for (pr = pixel_regions_register (3, &src, &dest, &mask_region);
+          pr != NULL;
+          pr = pixel_regions_process (pr), n++)
     {
-      const guchar *src = srcPR.data;
-      guchar       *map = mapPR.data;
+      const guchar *mask_data = mask_region.data;
+      const guchar *src_data = src.data;
+      guchar *dest_data = dest.data;
 
-      for (row = 0; row < srcPR.h; row++)
+      for (row = 0; row < src.h; row++)
         {
-          const guchar *s = src;
-          guchar       *m = map;
+          const guchar *m = mask_data;
+          const guchar *s = src_data;
+          guchar *d = dest_data;
 
-          for (col = 0; col < srcPR.w; col++, m++, s += state->bpp)
+          for (col = 0; col < src.w; col++, s += src.bytes, d += dest.bytes, ++m) // TODO check if 4 is ok
             {
-              lab          labpixel;
-              gfloat       minbg, minfg, d;
-              classresult *cr;
-              gint         key;
-              gint         i;
+              d[0] = s[0];
+              d[1] = s[1];
+              d[2] = s[2];
+              d[3] = m[0];
+            }
 
-              if (*m < SIOX_LOW || *m > SIOX_HIGH)
-                continue;
-
-              key = create_key (s, state->bpp, state->colormap);
-
-              cr = g_hash_table_lookup (state->cache, GINT_TO_POINTER (key));
-
-              if (cr)
-                {
-                  *m = (cr->bgdist >= cr->fgdist) ? 254 : 0;
-
-#ifdef SIOX_DEBUG
-                  ++hits;
-#endif
-                  continue;
-                }
-
-#ifdef SIOX_DEBUG
-              ++miss;
-#endif
-              cr = g_slice_new0 (classresult);
-              calc_lab (s, state->bpp, state->colormap, &labpixel);
-
-              minbg = euklid (&labpixel, state->bgsig + 0);
-
-              for (i = 1; i < state->bgsiglen; i++)
-                {
-                  d = euklid (&labpixel, state->bgsig + i);
-
-                  if (d < minbg)
-                    minbg = d;
-                }
-
-              cr->bgdist = minbg;
-
-              if (state->fgsiglen == 0)
-                {
-                  if (minbg < clustersize)
-                    minfg = minbg + clustersize;
-                  else
-                    minfg = 0.00001; /* This is a guess -
-                                        now we actually require a foreground
-                                        signature, !=0 to avoid div by zero
-                                      */
-                }
-              else
-                {
-                  minfg = euklid (&labpixel, state->fgsig + 0);
-
-                  for (i = 1; i < state->fgsiglen; i++)
-                    {
-                      d = euklid (&labpixel, state->fgsig + i);
-
-                      if (d < minfg)
-                        {
-                          minfg = d;
-                        }
-                    }
-                }
-
-              cr->fgdist = minfg;
-
-              g_hash_table_insert (state->cache, GINT_TO_POINTER (key), cr);
-
-              *m = minbg >= minfg ? 254 : 0;
-           }
-
-          src += srcPR.rowstride;
-          map += mapPR.rowstride;
+          src_data += src.rowstride;
+          dest_data += dest.rowstride;
+          mask_data += mask_region.rowstride;
         }
-
-      pixels += mapPR.w * mapPR.h;
-
-      if (n % 8 == 0)
-        siox_progress_update (progress_callback, progress_data,
-                              0.5 + 0.3 * ((gdouble) pixels / (gdouble) total));
     }
-
-#ifdef SIOX_DEBUG
-  g_printerr ("siox.c: Hashtable size %d, misses=%d, hits=%d, ratio=%f\n",
-              g_hash_table_size (state->cache),
-              miss,
-              hits,
-              ((gfloat) hits) / miss);
-#endif
-
-
-  /* smooth a bit for error killing */
-  smooth_mask (mask, x, y, width, height);
-
-  /* erode, to make sure only "strongly connected components"
-   * keep being connected
-   */
-  erode_mask (mask, x, y, width, height);
-
-  /* search the biggest connected component */
-  find_max_blob (mask, x, y, width, height,
-                 multiblob ?
-                 MULTIBLOB_DEFAULT_SIZEFACTOR : MULTIBLOB_ONE_BLOB_ONLY);
-
-  siox_progress_update (progress_callback, progress_data, 0.9);
-
-  /* smooth again - as user specified */
-  for (n = 0; n < smoothness; n++)
-    smooth_mask (mask, x, y, width, height);
-
-  /* search the biggest connected component again to kill jitter */
-  find_max_blob (mask, x, y, width, height,
-                 multiblob ?
-                 MULTIBLOB_DEFAULT_SIZEFACTOR : MULTIBLOB_ONE_BLOB_ONLY);
-
-  /* dilate, to fill up boundary pixels killed by erode */
-  dilate_mask (mask, x, y, width, height);
-
-  siox_progress_update (progress_callback, progress_data, 1.0);
 }
 
 
