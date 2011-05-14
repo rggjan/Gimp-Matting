@@ -201,11 +201,13 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
       y2 = gimp_item_get_height (GIMP_ITEM (mask));
     }
 
+/*
   siox_foreground_extract (state, refinement,
                            gimp_drawable_get_tiles (mask), x1, y1, x2, y2,
                            smoothness, sensitivity, multiblob,
                            (SioxProgressFunc) gimp_progress_set_value,
                            progress);
+*/
 
   if (progress)
     gimp_progress_end (progress);

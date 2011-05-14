@@ -839,7 +839,7 @@ gimp_foreground_select_tool_stroke (GimpChannel    *mask,
                             0.0, NULL);
   gimp_scan_convert_compose_value (scan_convert,
                              gimp_drawable_get_tiles (GIMP_DRAWABLE (mask)),
-                             0, 0, stroke->background ? 0 : 255);
+                             0, 0, stroke->background ? 30 : 240);
   gimp_scan_convert_free (scan_convert);
 }
 
