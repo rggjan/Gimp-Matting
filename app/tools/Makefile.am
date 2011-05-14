@@ -90,8 +90,6 @@ libapptools_a_sources = \
 	gimpforegroundselectoptions.h	\
 	gimpforegroundselecttool.c	\
 	gimpforegroundselecttool.h	\
-	gimpforegroundselecttoolundo.c	\
-	gimpforegroundselecttoolundo.h	\
 	gimpfuzzyselecttool.c		\
 	gimpfuzzyselecttool.h		\
 	gimpgegltool.c			\
