@@ -614,18 +614,6 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
   fg_select = GIMP_FOREGROUND_SELECT_TOOL (free_sel);
   options   = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (free_sel);
 
-
-  
-  //gimp_layer_add_alpha(gimp_image_get_active_layer(image));
-  //GimpImageType
-  /*const gchar* name = "abc";
-  GimpLayer *layer;
-  layer = gimp_layer_new(image, 10, 10, GIMP_RGBA_IMAGE, name, 1, GIMP_NORMAL_MODE);
-  
-            gimp_image_add_layer (image, layer,
-                        GIMP_IMAGE_ACTIVE_PARENT, -1, FALSE);
-  //gimp_image_add_layer(image, )
-  */
   if (fg_select->idle_id)
     {
       g_source_remove (fg_select->idle_id);
