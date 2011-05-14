@@ -265,12 +265,16 @@ gimp_foreground_select_tool_control (GimpTool       *tool,
           {
             gimp_drawable_foreground_extract_siox_done (fg_select->state);
             fg_select->state = NULL;
-            
-            g_object_unref (fg_select->result_layer);
-            fg_select->result_layer = NULL;
-          }
 
+            if (fg_select->result_layer != NULL)
+              {
+                g_debug ("Deleting result layer\n");
+                g_object_unref (fg_select->result_layer);
+              }
+          }
         tool->display = NULL;
+
+        fg_select->result_layer = NULL;
       }
       break;
     }
@@ -686,19 +690,20 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
 
       if (fg_select->state)
         g_warning ("state should be NULL here");
-      
-      if (fg_select->result_layer)
-        g_warning ("result layer should be NULL here");    
-      
-      fg_select->result_layer = gimp_layer_new (image,
-                                gimp_image_get_width (image),
-                                gimp_image_get_height (image),
-                                gimp_image_base_type_with_alpha (image),
-                                NULL, 1.0, GIMP_NORMAL_MODE);
 
+      if (fg_select->result_layer)
+        g_warning ("result layer should be NULL here");
+
+      g_debug ("Adding result layer\n");
+
+      fg_select->result_layer = gimp_layer_new (image,
+                                                gimp_image_get_width (image),
+                                                gimp_image_get_height (image),
+                                                gimp_image_base_type_with_alpha (image),
+                                                NULL, 1.0, GIMP_NORMAL_MODE);
       fg_select->state =
-        gimp_drawable_foreground_extract_siox_init (drawable,
-                                                    x1, y1, x2 - x1, y2 - y1);
+              gimp_drawable_foreground_extract_siox_init (drawable,
+                                                          x1, y1, x2 - x1, y2 - y1);
     }
 
   gimp_foreground_select_tool_set_mask (fg_select, display, mask);
@@ -773,14 +778,34 @@ gimp_foreground_select_tool_apply (GimpForegroundSelectTool *fg_select,
   g_return_if_fail (fg_select->result_layer != NULL);
     
   /*gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
-                               _("Extract Foreground"));*/
+                               _("Extract Foreground"));
 
   gimp_image_add_layer (image, fg_select->result_layer,
-                        GIMP_IMAGE_ACTIVE_PARENT, -1, TRUE);
-/*
+                        NULL, 0, FALSE);
   
   gimp_image_undo_group_end (image);
 */
+
+
+  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
+                               _("New Layer"));
+
+/*
+  new_layer = gimp_layer_new (image,
+                              gimp_image_get_width (image),
+                              gimp_image_get_height (image),
+                              gimp_image_base_type_with_alpha (image),
+                              NULL, 1.0, GIMP_NORMAL_MODE);
+*/
+
+  g_debug("Result layer to image\n");
+  gimp_image_add_layer (image, fg_select->result_layer,
+                        GIMP_IMAGE_ACTIVE_PARENT, -1, TRUE);
+
+  gimp_image_undo_group_end (image);
+
+  // So it is not deleted when exiting tool...
+  fg_select->result_layer = NULL;
 
  /* gimp_channel_select_channel (gimp_image_get_mask (image),
                                C_("command", "Foreground Select"),
