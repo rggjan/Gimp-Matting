@@ -837,19 +837,17 @@ siox_foreground_extract (SioxState          *state,
   PixelRegion  src;
   PixelRegion  dest;
   PixelRegion  mask_region;
-  gpointer     pr;
-  gint         row, col;
-  gint         x, y;
   gint         width, height;
-  gfloat       clustersize;
-  lab         *surebg      = NULL;
-  lab         *surefg      = NULL;
-  gint         surebgcount = 0;
-  gint         surefgcount = 0;
-  gint         n;
-  gint         pixels, total;
-  gfloat       limits[3];
+  gint         total;
+  guchar      *big_cache;
+  gint         tiles_x, tiles_y;
+  gint         big_cache_w;
 
+  Tile        *src_tile, *dst_tile;
+
+  gint         tx, ty, xdiff, ydiff, x, y, bx, by;
+  guchar      *pointer;
+  
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
   g_return_if_fail (x1 >= 0);
@@ -867,14 +865,99 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (x + width <= tile_manager_width (mask));
   g_return_if_fail (y + height <= tile_manager_height (mask));
 
-  pixel_region_init (&src, state->pixels, x, y, width, height, FALSE);
-  pixel_region_init (&dest, result_layer, x, y, width, height, TRUE);
-  pixel_region_init (&mask_region, mask, x, y, width, height, FALSE);
+  g_return_if_fail (TILE_WIDTH == 64 && TILE_HEIGHT == 64);
 
-  g_return_if_fail (src.bytes >= 3 && dest.bytes >= 4 && mask_region.bytes == 1); // TODO check if indexed etc...
+  //pixel_region_init (&src, state->pixels, x, y, width, height, FALSE);
+  //pixel_region_init (&dest, result_layer, x, y, width, height, TRUE);
+  //pixel_region_init (&mask_region, mask, x, y, width, height, FALSE);
+
+  //g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask_region.bytes == 1); // TODO check if indexed etc...
+
+  g_return_if_fail(tile_manager_bpp(state->pixels) == 3);
+  g_return_if_fail(tile_manager_bpp(result_layer) == 4);
+
+  // 64*64 of tile, 3 colors+alpha+bg/fg, 9 tiles
+  big_cache = g_malloc (64 * 64 * 4 * 9);
 
   total = width * height;
-  for (pr = pixel_regions_register (3, &src, &dest, &mask_region);
+
+  tiles_x = tile_manager_tiles_per_col (state->pixels);
+  tiles_y = tile_manager_tiles_per_row (state->pixels);
+  //tiles_x = state->pixels->ntile_cols;
+  //tiles_y = state->pixels->ntile_rows;
+
+  big_cache_w = 64*4*3;
+
+  for (tx = 0; tx < tiles_x; tx++)
+    {
+      for (ty = 0; ty < tiles_y; ty++)
+        {
+          for (xdiff = -1; xdiff <= 1; xdiff++)
+            {
+              for (ydiff = -1; ydiff <= 1; ydiff++)
+                {
+                  src_tile = tile_manager_get_at (state->pixels, tx+xdiff, ty+ydiff, TRUE, FALSE);
+                  if (src_tile)
+                    {
+                      pointer = tile_data_pointer (src_tile, 0, 0);
+                      for (x=0; x<64; x++)
+                        {
+                          bx = (xdiff+1)*64+x;
+                          for (y=0; y<64; y++)
+                            {
+                              by = (ydiff+1)*64+y;
+
+                              big_cache[by*big_cache_w+x] = *pointer;
+                              big_cache[by*big_cache_w+x+1] = *(pointer+1);
+                              big_cache[by*big_cache_w+x+2] = *(pointer+2);
+
+                              pointer += 3;
+                            }
+                        }
+
+                      tile_release (src_tile, FALSE);
+                    }
+                  else
+                    {
+                      // Fill with zeros
+                    }
+                }
+            }
+        }
+    }
+
+  for (tx = 0; tx < tiles_x-1; tx++)
+    {
+      for (ty = 0; ty < tiles_y-1; ty++)
+        {
+          // Could set to FALSE, TRUE, but then we get a warning...
+          dst_tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+          g_return_if_fail (dst_tile);
+          pointer = tile_data_pointer (dst_tile, 0, 0);
+          for (x = 0; x < 64; x++)
+            {
+              bx = 64 + x;
+              for (y = 0; y < 64; y++)
+                {
+                  by = 64 + y;
+
+                  *pointer = big_cache[by * big_cache_w + x];
+                  *(pointer+1) = big_cache[by * big_cache_w + x + 1];
+                  *(pointer+2) = big_cache[by * big_cache_w + x + 2];
+                  *(pointer+3) = 255;
+
+                  pointer += 4;
+                }
+            }
+
+          tile_release (dst_tile, TRUE);
+        }
+    }
+
+  g_free(big_cache);
+}
+
+  /*for (pr = pixel_regions_register (3, &src, &dest, &mask_region);
           pr != NULL;
           pr = pixel_regions_process (pr), n++)
     {
@@ -903,8 +986,7 @@ siox_foreground_extract (SioxState          *state,
           dest_data += dest.rowstride;
           mask_data += mask_region.rowstride;
         }
-    }
-}
+    }*/
 
 
 /**
