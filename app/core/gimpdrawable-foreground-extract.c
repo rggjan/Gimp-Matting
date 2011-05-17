@@ -44,10 +44,6 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
                                   GimpDrawable              *mask,
                                   GimpProgress              *progress)
 { 
-  const gdouble sensitivity[3] = { SIOX_DEFAULT_SENSITIVITY_L,
-                                   SIOX_DEFAULT_SENSITIVITY_A,
-                                   SIOX_DEFAULT_SENSITIVITY_B };
-
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
   g_return_if_fail (mode == GIMP_FOREGROUND_EXTRACT_SIOX);
 
@@ -84,7 +80,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
-  SioxState    *state;
+  //SioxState    *state;
   
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
@@ -168,10 +164,6 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
 {
   gint x1, y1;
   gint x2, y2;
-  
-  PixelRegion region;
-  gpointer    pr;
-  gint        row, col;
 
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
   g_return_if_fail (gimp_drawable_bytes (mask) == 1);

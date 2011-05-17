@@ -45,11 +45,6 @@
 #define SIOX_DEFAULT_SENSITIVITY_A  1.28
 #define SIOX_DEFAULT_SENSITIVITY_B  2.56
 
-/*  FIXME: turn this into an enum  */
-#define SIOX_DRB_ADD                0
-#define SIOX_DRB_SUBTRACT           1
-
-
 typedef void (* SioxProgressFunc) (gpointer  progress_data,
                                    gdouble   fraction);
 
@@ -76,13 +71,6 @@ void        siox_foreground_extract (SioxState          *state,
 				     TileManager        *result_layer);
 void        siox_done               (SioxState          *state);
 
-void        siox_drb                (SioxState          *state,
-                                     TileManager        *mask,
-                                     gint                x,
-                                     gint                y,
-                                     gint                brush_radius,
-                                     gint                brush_mode,
-                                     gfloat              threshold);
-
+void
 
 #endif /* __SIOX_H__ */
