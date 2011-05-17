@@ -907,9 +907,9 @@ siox_foreground_extract (SioxState          *state,
                             {
                               by = (ydiff+1)*64+y;
 
-                              big_cache[by*big_cache_w+x] = *pointer;
-                              big_cache[by*big_cache_w+x+1] = *(pointer+1);
-                              big_cache[by*big_cache_w+x+2] = *(pointer+2);
+                              big_cache[by*big_cache_w+bx*4] = *pointer;
+                              big_cache[by*big_cache_w+bx*4+1] = *(pointer+1);
+                              big_cache[by*big_cache_w+bx*4+2] = *(pointer+2);
 
                               pointer += 3;
                             }
@@ -941,9 +941,9 @@ siox_foreground_extract (SioxState          *state,
                 {
                   by = 64 + y;
 
-                  *pointer = big_cache[by * big_cache_w + x];
-                  *(pointer+1) = big_cache[by * big_cache_w + x + 1];
-                  *(pointer+2) = big_cache[by * big_cache_w + x + 2];
+                  *pointer = big_cache[by * big_cache_w + bx*4];
+                  *(pointer+1) = big_cache[by * big_cache_w + bx*4 + 1];
+                  *(pointer+2) = big_cache[by * big_cache_w + bx*4 + 2];
                   *(pointer+3) = 255;
 
                   pointer += 4;
