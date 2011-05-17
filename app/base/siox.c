@@ -73,6 +73,11 @@
 #define MULTIBLOB_DEFAULT_SIZEFACTOR 4
 #define MULTIBLOB_ONE_BLOB_ONLY      0
 
+#define BIG_CACHE_CHANNELS 4
+#define BIG_CACHE_W 64*3*BIG_CACHE_CHANNELS
+#define BIG_CACHE_H 64*3
+#define BIG_CACHE_SIZE BIG_CACHE_W*BIG_CACHE_H
+
 /* #define SIOX_DEBUG  */
 
 typedef struct
@@ -242,6 +247,50 @@ siox_init (TileManager  *pixels,
   return state;
 }
 
+void
+load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
+{
+  gint    xdiff;
+  gint    ydiff;
+  gint    x, y;
+  gint    bx, by;
+  
+  Tile   *src_tile;
+  guchar *pointer;
+
+  for (xdiff = -1; xdiff <= 1; xdiff++)
+    {
+      for (ydiff = -1; ydiff <= 1; ydiff++)
+        {
+          src_tile = tile_manager_get_at (source, tx + xdiff, ty + ydiff, TRUE, FALSE);
+          if (src_tile)
+            {
+              pointer = tile_data_pointer (src_tile, 0, 0);
+              for (x = 0; x < 64; x++) // TODO what if src tile not that big?
+                {
+                  bx = (xdiff + 1)*64 + x;
+                  for (y = 0; y < 64; y++)
+                    {
+                      by = (ydiff + 1)*64 + y;
+
+                      big_cache[by * BIG_CACHE_W + bx * 4] = *pointer;
+                      big_cache[by * BIG_CACHE_W + bx * 4 + 1] = *(pointer + 1);
+                      big_cache[by * BIG_CACHE_W + bx * 4 + 2] = *(pointer + 2);
+
+                      pointer += 3;
+                    }
+                }
+
+              tile_release (src_tile, FALSE);
+            }
+          else
+            {
+              // Fill with zeros
+            }
+        }
+    }
+}
+
 /**
  * siox_foreground_extract:
  * @state:       current state struct as constructed by siox_init
@@ -279,18 +328,14 @@ siox_foreground_extract (SioxState          *state,
                          gpointer            progress_data,
                          TileManager        *result_layer)
 {
-  PixelRegion  src;
-  PixelRegion  dest;
-  PixelRegion  mask_region;
   gint         width, height;
   gint         total;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
-  gint         big_cache_w;
 
-  Tile        *src_tile, *dst_tile;
+  Tile        *dst_tile;
 
-  gint         tx, ty, xdiff, ydiff, x, y, bx, by;
+  gint         tx, ty, x, y, bx, by;
   guchar      *pointer;
   
   g_return_if_fail (state != NULL);
@@ -322,7 +367,7 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail(tile_manager_bpp(result_layer) == 4);
 
   // 64*64 of tile, 3 colors+alpha+bg/fg, 9 tiles
-  big_cache = g_malloc (64 * 64 * 4 * 9);
+  big_cache = g_malloc (BIG_CACHE_SIZE);
 
   total = width * height;
 
@@ -331,43 +376,12 @@ siox_foreground_extract (SioxState          *state,
   //tiles_x = state->pixels->ntile_cols;
   //tiles_y = state->pixels->ntile_rows;
 
-  big_cache_w = 64*4*3;
 
   for (tx = 0; tx < tiles_x; tx++)
     {
       for (ty = 0; ty < tiles_y; ty++)
         {
-          for (xdiff = -1; xdiff <= 1; xdiff++)
-            {
-              for (ydiff = -1; ydiff <= 1; ydiff++)
-                {
-                  src_tile = tile_manager_get_at (state->pixels, tx+xdiff, ty+ydiff, TRUE, FALSE);
-                  if (src_tile)
-                    {
-                      pointer = tile_data_pointer (src_tile, 0, 0);
-                      for (x=0; x<64; x++)
-                        {
-                          bx = (xdiff+1)*64+x;
-                          for (y=0; y<64; y++)
-                            {
-                              by = (ydiff+1)*64+y;
-
-                              big_cache[by*big_cache_w+bx*4] = *pointer;
-                              big_cache[by*big_cache_w+bx*4+1] = *(pointer+1);
-                              big_cache[by*big_cache_w+bx*4+2] = *(pointer+2);
-
-                              pointer += 3;
-                            }
-                        }
-
-                      tile_release (src_tile, FALSE);
-                    }
-                  else
-                    {
-                      // Fill with zeros
-                    }
-                }
-            }
+          load_big_cache(state->pixels, big_cache, tx, ty);
         }
     }
 
@@ -386,9 +400,9 @@ siox_foreground_extract (SioxState          *state,
                 {
                   by = 64 + y;
 
-                  *pointer = big_cache[by * big_cache_w + bx*4];
-                  *(pointer+1) = big_cache[by * big_cache_w + bx*4 + 1];
-                  *(pointer+2) = big_cache[by * big_cache_w + bx*4 + 2];
+                  *pointer = big_cache[by * BIG_CACHE_W + bx*4];
+                  *(pointer+1) = big_cache[by * BIG_CACHE_W + bx*4 + 1];
+                  *(pointer+2) = big_cache[by * BIG_CACHE_W + bx*4 + 2];
                   *(pointer+3) = 255;
 
                   pointer += 4;
