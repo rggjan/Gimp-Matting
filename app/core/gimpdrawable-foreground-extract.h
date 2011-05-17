@@ -34,6 +34,7 @@ SioxState * gimp_drawable_foreground_extract_siox_init   (GimpDrawable *drawable
                                                           gint          width,
                                                           gint          height);
 void        gimp_drawable_foreground_extract_siox  (GimpDrawable       *mask,
+						    GimpLayer          *result_layer,
                                                     SioxState          *state,
                                                     SioxRefinementType  refinemane,
                                                     gint                smoothness,

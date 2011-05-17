@@ -893,7 +893,10 @@ siox_foreground_extract (SioxState          *state,
               d[0] = s[0];
               d[1] = s[1];
               d[2] = s[2];
-              d[3] = m[0];
+              if (m[0] == MATTING_USER_FOREGROUND)
+                d[3] = 255;
+              else
+                d[3] = 0;
             }
 
           src_data += src.rowstride;

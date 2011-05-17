@@ -169,7 +169,7 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
   gint x1, y1;
   gint x2, y2;
   
-    PixelRegion region;
+  PixelRegion region;
   gpointer    pr;
   gint        row, col;
 
