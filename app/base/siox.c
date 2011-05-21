@@ -291,6 +291,61 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
     }
 }
 
+void
+initialize_new_layer (TileManager* source_layer,
+                      TileManager* destination_layer,
+                      TileManager* mask_layer)
+{
+  PixelRegion src, dest, mask;
+  PixelRegionIterator *pr;
+  gint row, col;
+  int width, height;
+  
+  width = tile_manager_width (source_layer);
+  height = tile_manager_height(source_layer);
+
+
+  pixel_region_init (&src, source_layer, 0, 0, width, height, FALSE);
+  pixel_region_init (&dest, destination_layer, 0, 0, width, height, TRUE);
+  pixel_region_init (&mask, mask_layer, 0, 0, width, height, FALSE);
+
+  g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
+
+
+  for (pr = pixel_regions_register (3, &src, &dest, &mask);
+          pr != NULL;
+          pr = pixel_regions_process (pr))
+    {
+      const guchar *mask_data = mask.data;
+      const guchar *src_data = src.data;
+      guchar *dest_data = dest.data;
+
+      for (row = 0; row < src.h; row++)
+        {
+          const guchar *m = mask_data;
+          const guchar *s = src_data;
+          guchar *d = dest_data;
+
+          for (col = 0; col < src.w; col++, s += src.bytes, d += dest.bytes, ++m) // TODO check if 4 is ok
+            {
+              d[0] = s[0];
+              d[1] = s[1];
+              d[2] = s[2];
+              if (m[0] == MATTING_USER_FOREGROUND)
+                d[3] = 255;
+              else if (m[0] == MATTING_USER_BACKGROUND)
+                d[3] = 0;
+              else
+                d[3] = 128;
+            }
+
+          src_data += src.rowstride;
+          dest_data += dest.rowstride;
+          mask_data += mask.rowstride;
+        }
+    }
+}
+
 /**
  * siox_foreground_extract:
  * @state:       current state struct as constructed by siox_init
@@ -357,16 +412,9 @@ siox_foreground_extract (SioxState          *state,
 
   g_return_if_fail (TILE_WIDTH == 64 && TILE_HEIGHT == 64);
 
-  //pixel_region_init (&src, state->pixels, x, y, width, height, FALSE);
-  //pixel_region_init (&dest, result_layer, x, y, width, height, TRUE);
-  //pixel_region_init (&mask_region, mask, x, y, width, height, FALSE);
+  g_return_if_fail (tile_manager_bpp (state->pixels) == 3);
+  g_return_if_fail (tile_manager_bpp (result_layer) == 4);
 
-  //g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask_region.bytes == 1); // TODO check if indexed etc...
-
-  g_return_if_fail(tile_manager_bpp(state->pixels) == 3);
-  g_return_if_fail(tile_manager_bpp(result_layer) == 4);
-
-  // 64*64 of tile, 3 colors+alpha+bg/fg, 9 tiles
   big_cache = g_malloc (BIG_CACHE_SIZE);
 
   total = width * height;
@@ -407,39 +455,6 @@ siox_foreground_extract (SioxState          *state,
 
   g_free(big_cache);
 }
-
-  /*for (pr = pixel_regions_register (3, &src, &dest, &mask_region);
-          pr != NULL;
-          pr = pixel_regions_process (pr), n++)
-    {
-      const guchar *mask_data = mask_region.data;
-      const guchar *src_data = src.data;
-      guchar *dest_data = dest.data;
-
-      for (row = 0; row < src.h; row++)
-        {
-          const guchar *m = mask_data;
-          const guchar *s = src_data;
-          guchar *d = dest_data;
-
-          for (col = 0; col < src.w; col++, s += src.bytes, d += dest.bytes, ++m) // TODO check if 4 is ok
-            {
-              d[0] = s[0];
-              d[1] = s[1];
-              d[2] = s[2];
-              if (m[0] == MATTING_USER_FOREGROUND)
-                d[3] = 255;
-              else
-                d[3] = 0;
-            }
-
-          src_data += src.rowstride;
-          dest_data += dest.rowstride;
-          mask_data += mask_region.rowstride;
-        }
-    }*/
-
-
 
 /**
  * siox_done:

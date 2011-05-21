@@ -56,6 +56,12 @@ SioxState * siox_init               (TileManager        *pixels,
                                      gint                y,
                                      gint                width,
                                      gint                height);
+
+void
+initialize_new_layer (TileManager* source_layer,
+                      TileManager* destination_layer,
+                      TileManager* mask_layer);
+
 void        siox_foreground_extract (SioxState          *state,
                                      SioxRefinementType  refinement,
                                      TileManager        *mask,
