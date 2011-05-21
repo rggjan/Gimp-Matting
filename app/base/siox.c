@@ -335,7 +335,7 @@ siox_foreground_extract (SioxState          *state,
 
   Tile        *dst_tile;
 
-  gint         tx, ty, x, y, bx, by;
+  gint         tx, ty, x, y;
   guchar      *pointer;
   
   g_return_if_fail (state != NULL);
@@ -377,32 +377,24 @@ siox_foreground_extract (SioxState          *state,
   //tiles_y = state->pixels->ntile_rows;
 
 
-  for (tx = 0; tx < tiles_x; tx++)
+  for (tx = 0; tx < tiles_x-2; tx++)
     {
-      for (ty = 0; ty < tiles_y; ty++)
+      for (ty = 0; ty < tiles_y-2; ty++)
         {
           load_big_cache(state->pixels, big_cache, tx, ty);
-        }
-    }
 
-  for (tx = 0; tx < tiles_x-1; tx++)
-    {
-      for (ty = 0; ty < tiles_y-1; ty++)
-        {
           // Could set to FALSE, TRUE, but then we get a warning...
           dst_tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
           g_return_if_fail (dst_tile);
           pointer = tile_data_pointer (dst_tile, 0, 0);
-          for (x = 0; x < 64; x++)
-            {
-              bx = 64 + x;
-              for (y = 0; y < 64; y++)
-                {
-                  by = 64 + y;
 
-                  *pointer = big_cache[by * BIG_CACHE_W + bx*4];
-                  *(pointer+1) = big_cache[by * BIG_CACHE_W + bx*4 + 1];
-                  *(pointer+2) = big_cache[by * BIG_CACHE_W + bx*4 + 2];
+          for (x = 64; x < 64*2; x++)
+            {
+              for (y = 64; y < 64*2; y++)
+                {
+                  *pointer = big_cache[y * BIG_CACHE_W + x*4];
+                  *(pointer+1) = big_cache[y * BIG_CACHE_W + x*4 + 1];
+                  *(pointer+2) = big_cache[y * BIG_CACHE_W + x*4 + 2];
                   *(pointer+3) = 255;
 
                   pointer += 4;
