@@ -254,38 +254,58 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
   gint    ydiff;
   gint    x, y;
   gint    bx, by;
+  gint    width_tile, height_tile;
   
   Tile   *src_tile;
   guchar *pointer;
+
+  g_return_if_fail (tile_manager_bpp(source) == 4);
 
   for (xdiff = -1; xdiff <= 1; xdiff++)
     {
       for (ydiff = -1; ydiff <= 1; ydiff++)
         {
           src_tile = tile_manager_get_at (source, tx + xdiff, ty + ydiff, TRUE, FALSE);
+          width_tile = 0;
+          height_tile = 0;
+
           if (src_tile)
             {
               pointer = tile_data_pointer (src_tile, 0, 0);
-              for (x = 0; x < 64; x++) // TODO what if src tile not that big?
+              width_tile = tile_ewidth (src_tile);
+              height_tile = tile_eheight (src_tile);
+
+              for (x = 0; x < width_tile; x++) // TODO what if src tile not that big?
                 {
                   bx = (xdiff + 1)*64 + x;
-                  for (y = 0; y < 64; y++)
+                  for (y = 0; y < height_tile; y++)
                     {
                       by = (ydiff + 1)*64 + y;
 
                       big_cache[by * BIG_CACHE_W + bx * 4] = *pointer;
                       big_cache[by * BIG_CACHE_W + bx * 4 + 1] = *(pointer + 1);
                       big_cache[by * BIG_CACHE_W + bx * 4 + 2] = *(pointer + 2);
+                      big_cache[by * BIG_CACHE_W + bx * 4 + 3] = *(pointer + 3);
 
-                      pointer += 3;
+                      pointer += 4;
                     }
                 }
-
+              
               tile_release (src_tile, FALSE);
             }
-          else
+
+          for (x = width_tile; x < 64; x++)
             {
-              // Fill with zeros
+              bx = (xdiff + 1)*64 + x;
+              for (y = height_tile; y < 64; y++)
+                {
+                  by = (ydiff + 1)*64 + y;
+
+                  big_cache[by * BIG_CACHE_W + bx * 4] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 2] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 3] = 128;
+                }
             }
         }
     }
@@ -304,13 +324,11 @@ initialize_new_layer (TileManager* source_layer,
   width = tile_manager_width (source_layer);
   height = tile_manager_height(source_layer);
 
-
   pixel_region_init (&src, source_layer, 0, 0, width, height, FALSE);
   pixel_region_init (&dest, destination_layer, 0, 0, width, height, TRUE);
   pixel_region_init (&mask, mask_layer, 0, 0, width, height, FALSE);
 
   g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
-
 
   for (pr = pixel_regions_register (3, &src, &dest, &mask);
           pr != NULL;
@@ -424,12 +442,13 @@ siox_foreground_extract (SioxState          *state,
   //tiles_x = state->pixels->ntile_cols;
   //tiles_y = state->pixels->ntile_rows;
 
+  initialize_new_layer(state->pixels, result_layer, mask);
 
   for (tx = 0; tx < tiles_x-2; tx++)
     {
       for (ty = 0; ty < tiles_y-2; ty++)
         {
-          load_big_cache(state->pixels, big_cache, tx, ty);
+          load_big_cache(result_layer, big_cache, tx, ty);
 
           // Could set to FALSE, TRUE, but then we get a warning...
           dst_tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
