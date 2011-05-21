@@ -78,6 +78,9 @@
 #define BIG_CACHE_H 64*3
 #define BIG_CACHE_SIZE BIG_CACHE_W*BIG_CACHE_H
 
+#define GET_PIXEL(big_cache, x, y, color) big_cache[(64+y)*BIG_CACHE_W\
+                                           +(64+x)*BIG_CACHE_CHANNELS+color]
+
 /* #define SIOX_DEBUG  */
 
 typedef struct
@@ -402,14 +405,16 @@ siox_foreground_extract (SioxState          *state,
                          TileManager        *result_layer)
 {
   gint         width, height;
-  gint         total;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
 
-  Tile        *dst_tile;
+  Tile        *tile;
 
   gint         tx, ty, x, y;
   guchar      *pointer;
+
+  gint         radius, n;
+  guchar       value;
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -420,13 +425,8 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (smoothness >= 0);
   g_return_if_fail (progress_data == NULL || progress_callback != NULL);
 
-  x      = state->x;
-  y      = state->y;
   width  = state->width;
   height = state->height;
-
-  g_return_if_fail (x + width <= tile_manager_width (mask));
-  g_return_if_fail (y + height <= tile_manager_height (mask));
 
   g_return_if_fail (TILE_WIDTH == 64 && TILE_HEIGHT == 64);
 
@@ -435,8 +435,6 @@ siox_foreground_extract (SioxState          *state,
 
   big_cache = g_malloc (BIG_CACHE_SIZE);
 
-  total = width * height;
-
   tiles_x = tile_manager_tiles_per_col (state->pixels);
   tiles_y = tile_manager_tiles_per_row (state->pixels);
   //tiles_x = state->pixels->ntile_cols;
@@ -444,13 +442,77 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer(state->pixels, result_layer, mask);
 
-  for (tx = 0; tx < tiles_x-2; tx++)
+  for (tx = 0; tx < tiles_x-1; tx++)
     {
-      for (ty = 0; ty < tiles_y-2; ty++)
+      for (ty = 0; ty < tiles_y-1; ty++)
         {
           load_big_cache(result_layer, big_cache, tx, ty);
 
-          // Could set to FALSE, TRUE, but then we get a warning...
+          tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+          pointer = tile_data_pointer (tile, 0, 0);
+
+          for (x=0; x<64; x++)
+            {
+              for (y=0; y<64; y++, pointer += 4)
+                {
+                  if (*(pointer+3) != 128)
+                    {
+                      continue;
+                    }
+
+                  for (radius = 0; radius <= SEARCH_RADIUS; radius++)
+                    {
+                      for (n = -radius; n < radius; n++)
+                        {
+                          value = GET_PIXEL (big_cache, x + n, y + radius, 3);
+                          if (value != 128)
+                            {
+                              pointer[0] = 255;
+                              pointer[1] = 0;
+                              pointer[2] = 0;
+                              pointer[3] = 255;
+                            }
+
+                          value = GET_PIXEL (big_cache, x + n, y - radius, 3);
+                          if (value != 128)
+                            {
+                              pointer[0] = 255;
+                              pointer[1] = 0;
+                              pointer[2] = 0;
+                              pointer[3] = 255;
+                            }
+
+                          value = GET_PIXEL (big_cache, x + radius, y + n, 3);
+                          if (value != 128)
+                            {
+                              pointer[0] = 255;
+                              pointer[1] = 0;
+                              pointer[2] = 0;
+                              pointer[3] = 255;
+                            }
+
+                          value = GET_PIXEL (big_cache, x - radius, y + n, 3);
+                          if (value != 128)
+                            {
+                              pointer[0] = 255;
+                              pointer[1] = 0;
+                              pointer[2] = 0;
+                              pointer[3] = 255;
+                            }
+                        }
+                    }
+                }
+            }
+
+            tile_release (tile, TRUE);
+        }
+    }
+
+  g_free(big_cache);
+}
+
+/*
+ // Could set to FALSE, TRUE, but then we get a warning...
           dst_tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
           g_return_if_fail (dst_tile);
           pointer = tile_data_pointer (dst_tile, 0, 0);
@@ -469,11 +531,9 @@ siox_foreground_extract (SioxState          *state,
             }
 
           tile_release (dst_tile, TRUE);
-        }
-    }
 
-  g_free(big_cache);
-}
+ */
+
 
 /**
  * siox_done:
