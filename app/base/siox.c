@@ -458,22 +458,13 @@ siox_foreground_extract (SioxState          *state,
             {
               for (y=0; y<64; y++, pointer += 4)
                 {
-
-                  for (
-                          i=0; i<4; i++)
-                    {
-                      pointer[i] = GET_PIXEL (big_cache, -64+x*3, -64+y*3, i);
-
-                    }
-                  continue;
                   if (GET_PIXEL (big_cache, x, y, 3) != 128)
                     {
-/*
                       pointer[0] = GET_PIXEL (big_cache, x, y, 0);
                       pointer[1] = GET_PIXEL (big_cache, x, y, 1);
                       pointer[2] = GET_PIXEL (big_cache, x, y, 2);
                       pointer[3] = GET_PIXEL (big_cache, x, y, 3);
-*/
+
                       continue;
                     }
 
@@ -489,7 +480,6 @@ siox_foreground_extract (SioxState          *state,
                               pointer[2] = 0;
                               pointer[3] = 255;
                             }
-/*
 
                           value = GET_PIXEL (big_cache, x + n, y - radius, 3);
                           if (value != 128)
@@ -516,7 +506,7 @@ siox_foreground_extract (SioxState          *state,
                               pointer[1] = 0;
                               pointer[2] = 0;
                               pointer[3] = 255;
-                            }*/
+                            }
                         }
                     }
                 }
