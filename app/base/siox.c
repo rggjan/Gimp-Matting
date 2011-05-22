@@ -456,7 +456,7 @@ check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* res
   return FALSE;
 }
 
-static inline void
+static inline gboolean
 search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
 {
   guchar color[3];
@@ -470,7 +470,7 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   if (alpha != 128)
     {
       *result = alpha;
-      return;
+      return FALSE;
     }
 
   for (i = 0; i < 3; i++)
@@ -483,19 +483,21 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
       for (n = -radius; n < radius; n++)
         {
           if (check_closeness (color, big_cache, x+radius, y+n, result))
-            return;
+            return TRUE;
 
           if (check_closeness (color, big_cache, x-radius, y+n, result))
-            return;
+            return TRUE;
 
           if (check_closeness (color, big_cache, x+n, y+radius, result))
-            return;
+            return TRUE;
 
           if (check_closeness (color, big_cache, x+n, y-radius, result))
-            return;
+            return TRUE;
         }
     }
+
   *result = 128;
+  return FALSE;
 }
 
 
@@ -540,12 +542,14 @@ siox_foreground_extract (SioxState          *state,
   gint         width, height;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
-  gint         i;
 
   Tile        *tile;
 
   gint         tx, ty, x, y;
   guchar      *pointer;
+  gint i;
+
+  gboolean     found_something;
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -573,9 +577,13 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer(state->pixels, working_layer, mask);
 
-  for (i = 0; i < 3; i++)
+  found_something = TRUE;
+  
+  while (found_something)
+  //for (i=1; i<2; i++)
     {
       TileManager* tmp;
+      found_something = FALSE;
       
       for (tx = 0; tx < tiles_x - 1; tx++)
         {
@@ -594,7 +602,8 @@ siox_foreground_extract (SioxState          *state,
                       pointer[1] = GET_PIXEL (big_cache, x, y, 1);
                       pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
-                      search_for_neighbours (big_cache, x, y, pointer + 3);
+                      if (search_for_neighbours (big_cache, x, y, pointer + 3))
+                        found_something = TRUE;
                     }
                 }
 
