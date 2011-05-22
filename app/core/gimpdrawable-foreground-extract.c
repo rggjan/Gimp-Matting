@@ -155,6 +155,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
 void
 gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
                                        GimpLayer          *result_layer,
+                                       GimpLayer          *working_layer,
                                        SioxState          *state,
                                        SioxRefinementType  refinement,
                                        gint                smoothness,

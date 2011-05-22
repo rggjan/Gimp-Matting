@@ -48,6 +48,7 @@ struct _GimpForegroundSelectTool
   SioxRefinementType  refinement;
   
   GimpLayer          *result_layer;
+  GimpLayer          *working_layer;
 };
 
 struct _GimpForegroundSelectToolClass
