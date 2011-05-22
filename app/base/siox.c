@@ -412,10 +412,12 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   gint   radius;
   gint   n;
 
-  color[3] = GET_PIXEL (big_cache, x, y, 3);
-  if (color[3] != 128)
+  guchar alpha;
+
+  alpha = GET_PIXEL (big_cache, x, y, 3);
+  if (alpha != 128)
     {
-      *result = color[3];
+      *result = alpha;
       return;
     }
 
@@ -436,10 +438,9 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
 
           if (check_closeness (color, big_cache, x+n, y+radius, result))
             return;
+
           if (check_closeness (color, big_cache, x+n, y-radius, result))
             return;
-
-
         }
     }
   *result = 128;
