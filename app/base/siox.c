@@ -547,7 +547,7 @@ siox_foreground_extract (SioxState          *state,
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-  gint i;
+  gint         i;
 
   gboolean     found_something;
   
@@ -578,12 +578,13 @@ siox_foreground_extract (SioxState          *state,
   initialize_new_layer(state->pixels, working_layer, mask);
 
   found_something = TRUE;
-  
-  while (found_something)
-  //for (i=1; i<2; i++)
+
+  i = 0;
+  while (found_something || i%2 != 1)
     {
       TileManager* tmp;
       found_something = FALSE;
+      i++;
       
       for (tx = 0; tx < tiles_x - 1; tx++)
         {
