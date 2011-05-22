@@ -650,7 +650,7 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
 
   gimp_scan_convert_render_value (scan_convert,
                                   gimp_drawable_get_tiles (GIMP_DRAWABLE (mask)),
-                                  0, 0, MATTING_ALGO_FOREGROUND);
+                                  0, 0, MATTING_ALGO_UNDEFINED);
   gimp_scan_convert_free (scan_convert);
 
   if (fg_select->strokes)

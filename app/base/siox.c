@@ -373,6 +373,58 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+static void
+update_mask (TileManager* result_layer,
+             TileManager* mask_layer)
+{
+  PixelRegion result, mask;
+  PixelRegionIterator *pr;
+  gint row, col;
+  int width, height;
+
+  width = tile_manager_width (result_layer);
+  height = tile_manager_height(result_layer);
+
+  pixel_region_init (&result, result_layer, 0, 0, width, height, FALSE);
+  pixel_region_init (&mask, mask_layer, 0, 0, width, height, TRUE);
+
+  g_return_if_fail (result.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
+
+  for (pr = pixel_regions_register (2, &result, &mask);
+          pr != NULL;
+          pr = pixel_regions_process (pr))
+    {
+      const guchar *result_data = result.data;
+      guchar *mask_data = mask.data;
+
+      for (row = 0; row < result.h; row++)
+        {
+          const guchar *r = result_data;
+          guchar *m = mask_data;
+
+          for (col = 0; col < result.w; col++, r += result.bytes, ++m) // TODO check if 4 is ok
+            {
+              guchar mask;
+              mask = m[0];
+              if (mask != MATTING_USER_FOREGROUND &&
+                  mask != MATTING_USER_BACKGROUND)
+                {
+                  guchar result = r[3];
+                  if (result == 255)
+                    m[0] = MATTING_ALGO_FOREGROUND;
+                  else if (result == 0)
+                    m[0] = MATTING_ALGO_BACKGROUND;
+                  else
+                    m[0] = MATTING_ALGO_UNDEFINED;
+                }
+            }
+
+          result_data += result.rowstride;
+          mask_data += mask.rowstride;
+        }
+    }
+}
+
 static inline gboolean
 check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* result)
 {
@@ -545,6 +597,9 @@ siox_foreground_extract (SioxState          *state,
         }
     }
 
+  update_mask (result_layer, mask);
+
+  // TODO do this only once
   g_free(big_cache);
 }
 
