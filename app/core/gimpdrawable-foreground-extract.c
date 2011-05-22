@@ -193,7 +193,9 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
                            gimp_drawable_get_tiles (mask), x1, y1, x2, y2,
                            smoothness, sensitivity, multiblob,
                            (SioxProgressFunc) gimp_progress_set_value,
-                           progress, gimp_drawable_get_tiles(GIMP_DRAWABLE(result_layer)));
+                           progress,
+                           gimp_drawable_get_tiles(GIMP_DRAWABLE(result_layer)),
+                           gimp_drawable_get_tiles(GIMP_DRAWABLE(working_layer)));
 
 
   if (progress)

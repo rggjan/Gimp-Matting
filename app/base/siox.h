@@ -76,7 +76,9 @@ void        siox_foreground_extract (SioxState          *state,
                                      gboolean            multiblob,
                                      SioxProgressFunc    progress_callback,
                                      gpointer            progress_data,
-				     TileManager        *result_layer);
+				     TileManager        *result_layer,
+				     TileManager        *working_layer);
+
 void        siox_done               (SioxState          *state);
 
 void

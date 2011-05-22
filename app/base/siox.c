@@ -402,11 +402,13 @@ siox_foreground_extract (SioxState          *state,
                          gboolean            multiblob,
                          SioxProgressFunc    progress_callback,
                          gpointer            progress_data,
-                         TileManager        *result_layer)
+                         TileManager        *result_layer,
+                         TileManager        *working_layer)
 {
   gint         width, height;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
+  gint         i;
 
   Tile        *tile;
 
@@ -440,13 +442,13 @@ siox_foreground_extract (SioxState          *state,
   //tiles_x = state->pixels->ntile_cols;
   //tiles_y = state->pixels->ntile_rows;
 
-  initialize_new_layer(state->pixels, result_layer, mask);
+  initialize_new_layer(state->pixels, working_layer, mask);
 
   for (tx = 0; tx < tiles_x-1; tx++)
     {
       for (ty = 0; ty < tiles_y-1; ty++)
         {
-          load_big_cache(result_layer, big_cache, tx, ty);
+          load_big_cache(working_layer, big_cache, tx, ty);
 
           tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
           pointer = tile_data_pointer (tile, 0, 0);
@@ -455,8 +457,22 @@ siox_foreground_extract (SioxState          *state,
             {
               for (y=0; y<64; y++, pointer += 4)
                 {
-                  if (*(pointer+3) != 128)
+
+                  for (
+                          i=0; i<4; i++)
                     {
+                      pointer[i] = GET_PIXEL (big_cache, -64+x*3, -64+y*3, i);
+
+                    }
+                  continue;
+                  if (GET_PIXEL (big_cache, x, y, 3) != 128)
+                    {
+/*
+                      pointer[0] = GET_PIXEL (big_cache, x, y, 0);
+                      pointer[1] = GET_PIXEL (big_cache, x, y, 1);
+                      pointer[2] = GET_PIXEL (big_cache, x, y, 2);
+                      pointer[3] = GET_PIXEL (big_cache, x, y, 3);
+*/
                       continue;
                     }
 
@@ -472,6 +488,7 @@ siox_foreground_extract (SioxState          *state,
                               pointer[2] = 0;
                               pointer[3] = 255;
                             }
+/*
 
                           value = GET_PIXEL (big_cache, x + n, y - radius, 3);
                           if (value != 128)
@@ -498,7 +515,7 @@ siox_foreground_extract (SioxState          *state,
                               pointer[1] = 0;
                               pointer[2] = 0;
                               pointer[3] = 255;
-                            }
+                            }*/
                         }
                     }
                 }
