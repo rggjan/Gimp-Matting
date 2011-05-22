@@ -52,6 +52,11 @@
 #include "siox.h"
 
 
+#define SEARCH_RADIUS 10
+
+#define MATTING_SQUARED_COLOR_DISTANCE 10
+
+
 /* Thresholds in the mask:
  *   pixels < SIOX_LOW  are known background
  *   pixels > SIOX_HIGH are known foreground
@@ -368,17 +373,47 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+static inline gboolean
+check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* result)
+{
+  guchar value;
+  gint   color_distance_sum;
+  gint   color_distance;
+  gint   i;
+
+  value = GET_PIXEL (big_cache, x, y, 3);
+
+  if (value != 128)
+    {
+      color_distance_sum = 0;
+      for (i = 0; i < 3; i++)
+        {
+          color_distance = color[i] -
+                  GET_PIXEL (big_cache, x, y, 3);
+          color_distance_sum +=
+                  color_distance*color_distance;
+        }
+
+      if (color_distance_sum < MATTING_SQUARED_COLOR_DISTANCE)
+        {
+          *result = value;
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
 static inline void
 search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
 {
-  gint   color[3];
+  guchar color[3];
   gint   i;
   gint   radius;
   gint   n;
 
-  guchar value;
-  gint   color_distance_sum;
-  gint   color_distance;
+  int    x2;
+  int    y2;
 
   color[3] = GET_PIXEL (big_cache, x, y, 3);
   if (color[3] != 128)
@@ -396,25 +431,11 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
     {
       for (n = -radius; n < radius; n++)
         {
-          value = GET_PIXEL (big_cache, x + n, y + radius, 3);
+          x2 = x+n;
+          y2 = y+n;
 
-          if (value != 128)
-            {
-              color_distance_sum = 0;
-              for (i = 0; i < 3; i++)
-                {
-                  color_distance = color[i] -
-                          GET_PIXEL (big_cache, x + n, y + radius, 3);
-                  color_distance_sum +=
-                          color_distance*color_distance;
-                }
-
-              if (color_distance_sum < 10)
-                {
-                  *result = value;
-                  return;
-                }
-            }
+          if (check_closeness (color, big_cache, x2, y2, result))
+            return;
         }
     }
   *result = 128;
@@ -462,18 +483,11 @@ siox_foreground_extract (SioxState          *state,
   gint         width, height;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
-  gint         i;
 
   Tile        *tile;
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-
-  gint         radius, n;
-  guchar       value;
-  guchar       color[4];
-  gint         color_distance;
-  gint         color_distance_sum;
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
