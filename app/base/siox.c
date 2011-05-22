@@ -540,6 +540,7 @@ siox_foreground_extract (SioxState          *state,
   gint         width, height;
   guchar      *big_cache;
   gint         tiles_x, tiles_y;
+  gint         i;
 
   Tile        *tile;
 
@@ -572,31 +573,39 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer(state->pixels, working_layer, mask);
 
-  for (tx = 0; tx < tiles_x-1; tx++)
+  for (i = 0; i < 3; i++)
     {
-      for (ty = 0; ty < tiles_y-1; ty++)
+      TileManager* tmp;
+      
+      for (tx = 0; tx < tiles_x - 1; tx++)
         {
-          load_big_cache(working_layer, big_cache, tx, ty);
-
-          tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-          pointer = tile_data_pointer (tile, 0, 0);
-
-          for (x=0; x<64; x++)
+          for (ty = 0; ty < tiles_y - 1; ty++)
             {
-              for (y=0; y<64; y++, pointer += 4)
+              load_big_cache (working_layer, big_cache, tx, ty);
+
+              tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+              pointer = tile_data_pointer (tile, 0, 0);
+
+              for (x = 0; x < 64; x++)
                 {
-                  pointer[0] = GET_PIXEL (big_cache, x, y, 0);
-                  pointer[1] = GET_PIXEL (big_cache, x, y, 1);
-                  pointer[2] = GET_PIXEL (big_cache, x, y, 2);
+                  for (y = 0; y < 64; y++, pointer += 4)
+                    {
+                      pointer[0] = GET_PIXEL (big_cache, x, y, 0);
+                      pointer[1] = GET_PIXEL (big_cache, x, y, 1);
+                      pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
-                  search_for_neighbours (big_cache, x, y, pointer+3);
+                      search_for_neighbours (big_cache, x, y, pointer + 3);
+                    }
                 }
+
+              tile_release (tile, TRUE);
             }
-
-            tile_release (tile, TRUE);
         }
+      tmp = working_layer;
+      working_layer = result_layer;
+      result_layer = tmp;
     }
-
+  
   update_mask (result_layer, mask);
 
   // TODO do this only once
