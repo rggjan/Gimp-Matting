@@ -268,7 +268,8 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
     {
       for (ydiff = -1; ydiff <= 1; ydiff++)
         {
-          src_tile = tile_manager_get_at (source, tx + xdiff, ty + ydiff, TRUE, FALSE);
+          // No idea why we have tx + ydiff here, but otherwise it doesn't work!
+          src_tile = tile_manager_get_at (source, tx + ydiff, ty + xdiff, TRUE, FALSE);
           width_tile = 0;
           height_tile = 0;
 
