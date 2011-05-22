@@ -59,11 +59,6 @@ SioxState * siox_init               (TileManager        *pixels,
                                      gint                width,
                                      gint                height);
 
-void
-initialize_new_layer (TileManager* source_layer,
-                      TileManager* destination_layer,
-                      TileManager* mask_layer);
-
 void        siox_foreground_extract (SioxState          *state,
                                      SioxRefinementType  refinement,
                                      TileManager        *mask,
@@ -80,8 +75,5 @@ void        siox_foreground_extract (SioxState          *state,
 				     TileManager        *working_layer);
 
 void        siox_done               (SioxState          *state);
-
-void
-load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty);
 
 #endif /* __SIOX_H__ */

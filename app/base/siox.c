@@ -250,7 +250,7 @@ siox_init (TileManager  *pixels,
   return state;
 }
 
-void
+static void
 load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
 {
   gint    xdiff;
@@ -315,7 +315,7 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
     }
 }
 
-void
+static void
 initialize_new_layer (TileManager* source_layer,
                       TileManager* destination_layer,
                       TileManager* mask_layer)
@@ -368,6 +368,59 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+static inline void
+search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
+{
+  gint   color[3];
+  gint   i;
+  gint   radius;
+  gint   n;
+
+  guchar value;
+  gint   color_distance_sum;
+  gint   color_distance;
+
+  color[3] = GET_PIXEL (big_cache, x, y, 3);
+  if (color[3] != 128)
+    {
+      *result = color[3];
+      return;
+    }
+
+  for (i = 0; i < 3; i++)
+    {
+      color[i] = GET_PIXEL (big_cache, x, y, i);
+    }
+
+  for (radius = 0; radius <= SEARCH_RADIUS; radius++)
+    {
+      for (n = -radius; n < radius; n++)
+        {
+          value = GET_PIXEL (big_cache, x + n, y + radius, 3);
+
+          if (value != 128)
+            {
+              color_distance_sum = 0;
+              for (i = 0; i < 3; i++)
+                {
+                  color_distance = color[i] -
+                          GET_PIXEL (big_cache, x + n, y + radius, 3);
+                  color_distance_sum +=
+                          color_distance*color_distance;
+                }
+
+              if (color_distance_sum < 10)
+                {
+                  *result = value;
+                  return;
+                }
+            }
+        }
+    }
+  *result = 128;
+}
+
+
 /**
  * siox_foreground_extract:
  * @state:       current state struct as constructed by siox_init
@@ -418,6 +471,9 @@ siox_foreground_extract (SioxState          *state,
 
   gint         radius, n;
   guchar       value;
+  guchar       color[4];
+  gint         color_distance;
+  gint         color_distance_sum;
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -458,21 +514,18 @@ siox_foreground_extract (SioxState          *state,
             {
               for (y=0; y<64; y++, pointer += 4)
                 {
-                  if (GET_PIXEL (big_cache, x, y, 3) != 128)
-                    {
-                      pointer[0] = GET_PIXEL (big_cache, x, y, 0);
-                      pointer[1] = GET_PIXEL (big_cache, x, y, 1);
-                      pointer[2] = GET_PIXEL (big_cache, x, y, 2);
-                      pointer[3] = GET_PIXEL (big_cache, x, y, 3);
+                  pointer[0] = GET_PIXEL (big_cache, x, y, 0);
+                  pointer[1] = GET_PIXEL (big_cache, x, y, 1);
+                  pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
-                      continue;
-                    }
+                  search_for_neighbours (big_cache, x, y, pointer+3);
 
-                  for (radius = 0; radius <= SEARCH_RADIUS; radius++)
-                    {
-                      for (n = -radius; n < radius; n++)
-                        {
-                          value = GET_PIXEL (big_cache, x + n, y + radius, 3);
+/*
+                          for (i=0; i<3; i++)
+                            {
+                              color2[i] =
+                            }
+
                           if (value != 128)
                             {
                               pointer[0] = 255;
@@ -507,8 +560,8 @@ siox_foreground_extract (SioxState          *state,
                               pointer[2] = 0;
                               pointer[3] = 255;
                             }
-                        }
-                    }
+*/
+                    
                 }
             }
 
