@@ -412,9 +412,6 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   gint   radius;
   gint   n;
 
-  int    x2;
-  int    y2;
-
   color[3] = GET_PIXEL (big_cache, x, y, 3);
   if (color[3] != 128)
     {
@@ -431,11 +428,18 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
     {
       for (n = -radius; n < radius; n++)
         {
-          x2 = x+n;
-          y2 = y+n;
-
-          if (check_closeness (color, big_cache, x2, y2, result))
+          if (check_closeness (color, big_cache, x+radius, y+n, result))
             return;
+
+          if (check_closeness (color, big_cache, x-radius, y+n, result))
+            return;
+
+          if (check_closeness (color, big_cache, x+n, y+radius, result))
+            return;
+          if (check_closeness (color, big_cache, x+n, y-radius, result))
+            return;
+
+
         }
     }
   *result = 128;
@@ -533,49 +537,6 @@ siox_foreground_extract (SioxState          *state,
                   pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
                   search_for_neighbours (big_cache, x, y, pointer+3);
-
-/*
-                          for (i=0; i<3; i++)
-                            {
-                              color2[i] =
-                            }
-
-                          if (value != 128)
-                            {
-                              pointer[0] = 255;
-                              pointer[1] = 0;
-                              pointer[2] = 0;
-                              pointer[3] = 255;
-                            }
-
-                          value = GET_PIXEL (big_cache, x + n, y - radius, 3);
-                          if (value != 128)
-                            {
-                              pointer[0] = 255;
-                              pointer[1] = 0;
-                              pointer[2] = 0;
-                              pointer[3] = 255;
-                            }
-
-                          value = GET_PIXEL (big_cache, x + radius, y + n, 3);
-                          if (value != 128)
-                            {
-                              pointer[0] = 255;
-                              pointer[1] = 0;
-                              pointer[2] = 0;
-                              pointer[3] = 255;
-                            }
-
-                          value = GET_PIXEL (big_cache, x - radius, y + n, 3);
-                          if (value != 128)
-                            {
-                              pointer[0] = 255;
-                              pointer[1] = 0;
-                              pointer[2] = 0;
-                              pointer[3] = 255;
-                            }
-*/
-                    
                 }
             }
 
