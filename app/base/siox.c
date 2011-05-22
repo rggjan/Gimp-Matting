@@ -389,7 +389,7 @@ check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* res
       for (i = 0; i < 3; i++)
         {
           color_distance = color[i] -
-                  GET_PIXEL (big_cache, x, y, 3);
+                  GET_PIXEL (big_cache, x, y, i);
           color_distance_sum +=
                   color_distance*color_distance;
         }
