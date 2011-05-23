@@ -54,7 +54,9 @@
 
 #define SEARCH_RADIUS 10
 
-#define MATTING_SQUARED_COLOR_DISTANCE 10
+#define MATTING_SQUARED_COLOR_DISTANCE 25
+
+//#define ONE_TIME_EXPANSION
 
 
 /* Thresholds in the mask:
@@ -580,7 +582,9 @@ siox_foreground_extract (SioxState          *state,
   found_something = TRUE;
 
   i = 0;
+#ifdef ONE_TIME_EXPANSION
   while (found_something || i%2 != 1)
+#endif
     {
       TileManager* tmp;
       found_something = FALSE;
