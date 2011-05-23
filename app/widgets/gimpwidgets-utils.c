@@ -41,6 +41,7 @@
 
 #include "gimpdialogfactory.h"
 #include "gimpdock.h"
+#include "gimpdockcontainer.h"
 #include "gimpdockwindow.h"
 #include "gimperrordialog.h"
 #include "gimpwidgets-utils.h"
@@ -329,13 +330,9 @@ gimp_enum_radio_box_add (GtkBox    *box,
           gtk_box_pack_start (GTK_BOX (hbox), widget, TRUE, TRUE, 0);
           gtk_widget_show (widget);
 
-          g_object_set_data (G_OBJECT (radio), "set_sensitive", widget);
-          g_signal_connect (radio, "toggled",
-                            G_CALLBACK (gimp_toggle_button_sensitive_update),
-                            NULL);
-
-          gtk_widget_set_sensitive (widget,
-                                    gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (list->data)));
+          g_object_bind_property (radio,  "active",
+                                  widget, "sensitive",
+                                  G_BINDING_SYNC_CREATE);
 
           gtk_widget_show (hbox);
 
@@ -1110,9 +1107,10 @@ gimp_dock_with_window_new (GimpDialogFactory *factory,
                            GdkScreen         *screen,
                            gboolean           toolbox)
 {
-  GtkWidget     *dock_window = NULL;
-  GtkWidget     *dock        = NULL;
-  GimpUIManager *ui_manager  = NULL;
+  GtkWidget         *dock_window;
+  GimpDockContainer *dock_container;
+  GtkWidget         *dock;
+  GimpUIManager     *ui_manager;
 
   g_return_val_if_fail (GIMP_IS_DIALOG_FACTORY (factory), NULL);
   g_return_val_if_fail (GDK_IS_SCREEN (screen), NULL);
@@ -1129,15 +1127,16 @@ gimp_dock_with_window_new (GimpDialogFactory *factory,
                                                 -1 /*view_size*/,
                                                 FALSE /*present*/);
 
-  ui_manager = gimp_dock_window_get_ui_manager (GIMP_DOCK_WINDOW (dock_window));
-  dock       = gimp_dialog_factory_dialog_new (factory,
-                                               screen,
-                                               ui_manager,
-                                               (toolbox ?
-                                                "gimp-toolbox" :
-                                                "gimp-dock"),
-                                               -1 /*view_size*/,
-                                               FALSE /*present*/);
+  dock_container = GIMP_DOCK_CONTAINER (dock_window);
+  ui_manager     = gimp_dock_container_get_ui_manager (dock_container);
+  dock           = gimp_dialog_factory_dialog_new (factory,
+                                                   screen,
+                                                   ui_manager,
+                                                   (toolbox ?
+                                                    "gimp-toolbox" :
+                                                    "gimp-dock"),
+                                                   -1 /*view_size*/,
+                                                   FALSE /*present*/);
 
   if (dock)
     gimp_dock_window_add_dock (GIMP_DOCK_WINDOW (dock_window),

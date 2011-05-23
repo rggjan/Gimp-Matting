@@ -379,6 +379,7 @@ displace_dialog (GimpDrawable *drawable)
                                      1, 10, 0, 1, 2);
   gtk_table_attach (GTK_TABLE (table), spinbutton, 1, 2, 0, 1,
                     GTK_FILL, GTK_FILL, 0, 0);
+  gtk_widget_show (spinbutton);
 
   g_signal_connect (adj, "value-changed",
                     G_CALLBACK (gimp_double_adjustment_update),
@@ -387,24 +388,25 @@ displace_dialog (GimpDrawable *drawable)
                             G_CALLBACK (gimp_preview_invalidate),
                             preview);
 
-  gtk_widget_set_sensitive (spinbutton, dvals.do_x);
-  g_object_set_data (G_OBJECT (toggle_x), "set_sensitive", spinbutton);
-  gtk_widget_show (spinbutton);
+  g_object_bind_property (toggle_x,   "active",
+                          spinbutton, "sensitive",
+                          G_BINDING_SYNC_CREATE);
 
   combo = gimp_drawable_combo_box_new (displace_map_constrain, drawable);
   gimp_int_combo_box_connect (GIMP_INT_COMBO_BOX (combo), dvals.displace_map_x,
                               G_CALLBACK (gimp_int_combo_box_get_active),
                               &dvals.displace_map_x);
-  g_signal_connect_swapped (combo, "changed",
-                            G_CALLBACK (gimp_preview_invalidate),
-                            preview);
-
   gtk_table_attach (GTK_TABLE (table), combo, 2, 3, 0, 1,
                     GTK_EXPAND | GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
   gtk_widget_show (combo);
 
-  gtk_widget_set_sensitive (combo, dvals.do_x);
-  g_object_set_data (G_OBJECT (spinbutton), "set_sensitive", combo);
+  g_signal_connect_swapped (combo, "changed",
+                            G_CALLBACK (gimp_preview_invalidate),
+                            preview);
+
+  g_object_bind_property (toggle_x, "active",
+                          combo,    "sensitive",
+                          G_BINDING_SYNC_CREATE);
 
   /*  Y Options  */
   toggle_y = gtk_check_button_new_with_mnemonic (_("_Y displacement:"));
@@ -426,6 +428,7 @@ displace_dialog (GimpDrawable *drawable)
                                      1, 10, 0, 1, 2);
   gtk_table_attach (GTK_TABLE (table), spinbutton, 1, 2, 1, 2,
                     GTK_FILL, GTK_FILL, 0, 0);
+  gtk_widget_show (spinbutton);
 
   g_signal_connect (adj, "value-changed",
                     G_CALLBACK (gimp_double_adjustment_update),
@@ -434,9 +437,9 @@ displace_dialog (GimpDrawable *drawable)
                             G_CALLBACK (gimp_preview_invalidate),
                             preview);
 
-  gtk_widget_set_sensitive (spinbutton, dvals.do_y);
-  g_object_set_data (G_OBJECT (toggle_y), "set_sensitive", spinbutton);
-  gtk_widget_show (spinbutton);
+  g_object_bind_property (toggle_y,   "active",
+                          spinbutton, "sensitive",
+                          G_BINDING_SYNC_CREATE);
 
   combo = gimp_drawable_combo_box_new (displace_map_constrain, drawable);
   gimp_int_combo_box_connect (GIMP_INT_COMBO_BOX (combo), dvals.displace_map_y,
@@ -450,8 +453,9 @@ displace_dialog (GimpDrawable *drawable)
                     GTK_EXPAND | GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
   gtk_widget_show (combo);
 
-  gtk_widget_set_sensitive (combo, dvals.do_y);
-  g_object_set_data (G_OBJECT (spinbutton), "set_sensitive", combo);
+  g_object_bind_property (toggle_y, "active",
+                          combo,    "sensitive",
+                          G_BINDING_SYNC_CREATE);
 
   hbox = gtk_hbox_new (FALSE, 24);
   gtk_box_pack_start (GTK_BOX (main_vbox), hbox, FALSE, FALSE, 0);
@@ -523,7 +527,7 @@ displace (GimpDrawable *drawable,
   guchar           *mxrow, *mx;
   guchar           *myrow, *my;
   guchar            pixel[4][4];
-  gint              x1, y1, x2, y2;
+  gint              x1, y1;
   gint              x, y;
   gdouble           cx, cy;
   gint              progress, max_progress;
@@ -561,23 +565,23 @@ displace (GimpDrawable *drawable,
 
   bytes  = drawable->bpp;
 
-  gimp_drawable_mask_bounds (drawable->drawable_id, &x1, &y1, &x2, &y2);
-  width  = x2 - x1;
-  height = y2 - y1;
-
-  if (dvals.mode == POLAR_MODE)
-    {
-      cx = x1 + width / 2.0;
-      cy = y1 + height / 2.0;
-    }
 
   if (preview)
     {
       gimp_preview_get_position (preview, &x1, &y1);
       gimp_preview_get_size (preview, &width, &height);
-      x2 = x1 + width;
-      y2 = y1 + height;
       buffer = g_new (guchar, width * height * bytes);
+    }
+  else if (! gimp_drawable_mask_intersect (drawable->drawable_id, &x1, &y1,
+                                           &width, &height))
+    {
+      return;
+    }
+
+  if (dvals.mode == POLAR_MODE)
+    {
+      cx = x1 + width / 2.0;
+      cy = y1 + height / 2.0;
     }
 
   progress     = 0;

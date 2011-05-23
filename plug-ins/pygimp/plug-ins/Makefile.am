@@ -6,6 +6,7 @@ scripts = \
 	colorxhtml.py		\
 	file-openraster.py	\
 	foggify.py		\
+        gradients-save-as-css.py\
 	palette-offset.py	\
 	palette-sort.py		\
 	palette-to-gradient.py	\

@@ -41,6 +41,7 @@
 #include "gimpdock.h"
 #include "gimpdockbook.h"
 #include "gimpdockable.h"
+#include "gimpdockcontainer.h"
 #include "gimpdockwindow.h"
 #include "gimpmenufactory.h"
 #include "gimpsessioninfo.h"
@@ -272,6 +273,7 @@ gimp_dialog_factory_register_entry (GimpDialogFactory *factory,
                                     gboolean           remember_size,
                                     gboolean           remember_if_open,
                                     gboolean           hideable,
+                                    gboolean           image_window,
                                     gboolean           dockable)
 {
   GimpDialogFactoryEntry *entry;
@@ -293,6 +295,7 @@ gimp_dialog_factory_register_entry (GimpDialogFactory *factory,
   entry->remember_size    = remember_size ? TRUE : FALSE;
   entry->remember_if_open = remember_if_open ? TRUE : FALSE;
   entry->hideable         = hideable ? TRUE : FALSE;
+  entry->image_window     = image_window ? TRUE : FALSE;
   entry->dockable         = dockable ? TRUE : FALSE;
 
   factory->p->registered_dialogs = g_list_prepend (factory->p->registered_dialogs,
@@ -456,6 +459,8 @@ gimp_dialog_factory_dialog_new_internal (GimpDialogFactory *factory,
             }
           else if (strcmp ("gimp-toolbox", entry->identifier) == 0)
             {
+              GimpDockContainer *dock_container;
+
               dock_window = gimp_dialog_factory_dialog_new (factory,
                                                             screen,
                                                             NULL /*ui_manager*/,
@@ -466,7 +471,8 @@ gimp_dialog_factory_dialog_new_internal (GimpDialogFactory *factory,
               /* When we get a dock window, we also get a UI
                * manager
                */
-              ui_manager = gimp_dock_window_get_ui_manager (GIMP_DOCK_WINDOW (dock_window));
+              dock_container = GIMP_DOCK_CONTAINER (dock_window);
+              ui_manager     = gimp_dock_container_get_ui_manager (dock_container);
             }
         }
 
@@ -682,11 +688,13 @@ gimp_dialog_factory_add_session_info (GimpDialogFactory *factory,
                                       GimpSessionInfo   *info)
 {
   g_return_if_fail (GIMP_IS_DIALOG_FACTORY (factory));
+  g_return_if_fail (GIMP_IS_SESSION_INFO (info));
 
   /* We want to append rather than prepend so that the serialized
    * order in sessionrc remains the same
    */
-  factory->p->session_infos = g_list_append (factory->p->session_infos, info);
+  factory->p->session_infos = g_list_append (factory->p->session_infos,
+                                             g_object_ref (info));
 }
 
 /**
@@ -911,7 +919,8 @@ gimp_dialog_factory_add_dialog (GimpDialogFactory *factory,
                                 NULL);
             }
 
-          factory->p->session_infos = g_list_append (factory->p->session_infos, info);
+          gimp_dialog_factory_add_session_info (factory, info);
+          g_object_unref (info);
         }
     }
 

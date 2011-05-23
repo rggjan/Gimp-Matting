@@ -30,6 +30,7 @@
 #include "widgets/gimpdialogfactory.h"
 #include "widgets/gimpdock.h"
 #include "widgets/gimpdockcolumns.h"
+#include "widgets/gimpdockcontainer.h"
 #include "widgets/gimpdockwindow.h"
 #include "widgets/gimptoolbox.h"
 
@@ -164,16 +165,18 @@ gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer  *ui_configurer,
 
   for (dialog_iter = dialogs; dialog_iter; dialog_iter = dialog_iter->next)
     {
-      GimpDockWindow *dock_window = NULL;
-      GList          *docks       = NULL;
-      GList          *dock_iter   = NULL;
+      GimpDockWindow    *dock_window    = NULL;
+      GimpDockContainer *dock_container = NULL;
+      GList             *docks          = NULL;
+      GList             *dock_iter      = NULL;
 
       if (!GIMP_IS_DOCK_WINDOW (dialog_iter->data))
         continue;
 
-      dock_window = GIMP_DOCK_WINDOW (dialog_iter->data);
+      dock_window    = GIMP_DOCK_WINDOW (dialog_iter->data);
+      dock_container = GIMP_DOCK_CONTAINER (dock_window);
 
-      docks = g_list_copy (gimp_dock_window_get_docks (dock_window));
+      docks = gimp_dock_container_get_docks (dock_container);
       for (dock_iter = docks; dock_iter; dock_iter = dock_iter->next)
         {
           GimpDock *dock = GIMP_DOCK (dock_iter->data);
@@ -199,12 +202,21 @@ gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer  *ui_configurer,
        * complains about invalid reads when the dock window already is
        * destroyed
        */
-      if (GTK_IS_WIDGET (dock_window) &&
-          g_list_length (gimp_dock_window_get_docks (dock_window)) == 0)
+      if (GTK_IS_WIDGET (dock_window))
         {
-          gimp_dialog_factory_remove_dialog (gimp_dialog_factory_get_singleton (),
-                                             GTK_WIDGET (dock_window));
-          gtk_widget_destroy (GTK_WIDGET (dock_window));
+          guint docks_len;
+
+          docks     = gimp_dock_container_get_docks (dock_container);
+          docks_len = g_list_length (docks);
+
+          if (docks_len == 0)
+            {
+              gimp_dialog_factory_remove_dialog (gimp_dialog_factory_get_singleton (),
+                                                 GTK_WIDGET (dock_window));
+              gtk_widget_destroy (GTK_WIDGET (dock_window));
+            }
+
+          g_list_free (docks);
         }
     }
 }
@@ -439,8 +451,8 @@ gimp_ui_configurer_configure_for_multi_window (GimpUIConfigurer *ui_configurer)
 static GimpImageWindow *
 gimp_ui_configurer_get_uber_window (GimpUIConfigurer *ui_configurer)
 {
-  GimpContext      *context      = gimp_get_user_context (ui_configurer->p->gimp);
-  GimpDisplay      *display      = gimp_context_get_display (context);
+  Gimp             *gimp         = ui_configurer->p->gimp;
+  GimpDisplay      *display      = gimp_get_display_iter (gimp)->data;
   GimpDisplayShell *shell        = gimp_display_get_shell (display);
   GimpImageWindow  *image_window = gimp_display_shell_get_window (shell);
 

@@ -106,6 +106,17 @@ typedef struct
 }
 PngSaveGui;
 
+/* These are not saved or restored. */
+typedef struct
+{
+  gboolean   has_trns;
+  png_bytep  trans;
+  int        num_trans;
+  gboolean   has_plte;
+  png_colorp palette;
+  int        num_palette;
+}
+PngGlobals;
 
 /*
  * Local functions...
@@ -175,6 +186,7 @@ static const PngSaveVals defaults =
 };
 
 static PngSaveVals pngvals;
+static PngGlobals pngg;
 
 
 /*
@@ -1217,7 +1229,6 @@ save_image (const gchar  *filename,
   GimpPixelRgn pixel_rgn;       /* Pixel region for layer */
   png_structp pp;               /* PNG read pointer */
   png_infop info;               /* PNG info pointer */
-  gint num_colors;              /* Number of colors in colormap */
   gint offx, offy;              /* Drawable offsets from origin */
   guchar **pixels,              /* Pixel rows */
    *fixed,                      /* Fixed-up pixel data */
@@ -1230,54 +1241,10 @@ save_image (const gchar  *filename,
   struct tm *gmt;               /* GMT broken down */
   int color_type;
   int bit_depth;
-  png_colorp palette;
 
   guchar remap[256];            /* Re-mapping for the palette */
 
   png_textp  text = NULL;
-
-  if (pngvals.comment)
-    {
-      GimpParasite *parasite;
-#ifndef PNG_iTXt_SUPPORTED
-      gsize text_length = 0;
-#endif /* PNG_iTXt_SUPPORTED */
-
-      parasite = gimp_image_get_parasite (orig_image_ID, "gimp-comment");
-      if (parasite)
-        {
-          gchar *comment = g_strndup (gimp_parasite_data (parasite),
-                                      gimp_parasite_data_size (parasite));
-
-          gimp_parasite_free (parasite);
-
-          text = g_new0 (png_text, 1);
-          text->key         = "Comment";
-
-#ifdef PNG_iTXt_SUPPORTED
-
-          text->compression = PNG_ITXT_COMPRESSION_NONE;
-          text->text        = comment;
-          text->itxt_length = strlen (comment);
-
-#else
-
-          text->compression = PNG_TEXT_COMPRESSION_NONE;
-          text->text        = g_convert (comment, -1,
-                                         "ISO-8859-1", "UTF-8",
-                                         NULL, &text_length,
-                                         NULL);
-          text->text_length = text_length;
-
-#endif
-
-          if (!text->text)
-            {
-              g_free (text);
-              text = NULL;
-            }
-        }
-    }
 
   pp = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
   info = png_create_info_struct (pp);
@@ -1289,9 +1256,6 @@ save_image (const gchar  *filename,
                    gimp_filename_to_utf8 (filename));
       return FALSE;
     }
-
-  if (text)
-    png_set_text (pp, info, text, 1);
 
   /*
    * Open the file and initialize the PNG write "engine"...
@@ -1355,9 +1319,10 @@ save_image (const gchar  *filename,
     case GIMP_INDEXED_IMAGE:
       bpp = 1;
       color_type = PNG_COLOR_TYPE_PALETTE;
-      palette = (png_colorp) gimp_image_get_colormap (image_ID, &num_colors);
-      png_set_PLTE (pp, info, palette, num_colors);
-      bit_depth = get_bit_depth_for_palette (num_colors);
+      pngg.has_plte = TRUE;
+      pngg.palette = (png_colorp) gimp_image_get_colormap (image_ID,
+                                                           &pngg.num_palette);
+      bit_depth = get_bit_depth_for_palette (pngg.num_palette);
       break;
 
     case GIMP_INDEXEDA_IMAGE:
@@ -1371,6 +1336,29 @@ save_image (const gchar  *filename,
       g_set_error (error, 0, 0, "Image type can't be saved as PNG");
       return FALSE;
     }
+
+  /* Note: png_set_IHDR() must be called before any other png_set_*()
+     functions. */
+  png_set_IHDR (pp, info, drawable->width, drawable->height,
+                bit_depth,
+                color_type,
+                pngvals.interlaced ? PNG_INTERLACE_ADAM7 : PNG_INTERLACE_NONE,
+                PNG_COMPRESSION_TYPE_BASE,
+                PNG_FILTER_TYPE_BASE);
+
+  if (pngg.has_trns)
+    {
+      png_set_tRNS (pp, info, pngg.trans, pngg.num_trans, NULL);
+    }
+
+  if (pngg.has_plte)
+    {
+      png_set_PLTE (pp, info, pngg.palette, pngg.num_palette);
+    }
+
+  /* Set the compression level */
+
+  png_set_compression_level (pp, pngvals.compression_level);
 
   /* All this stuff is optional extras, if the user is aiming for smallest
      possible file size she can turn them all off */
@@ -1466,17 +1454,51 @@ save_image (const gchar  *filename,
   }
 #endif
 
-  /*
-   * Set the image dimensions, bit depth, interlacing and compression
-   */
+  if (pngvals.comment)
+    {
+      GimpParasite *parasite;
+#ifndef PNG_iTXt_SUPPORTED
+      gsize text_length = 0;
+#endif /* PNG_iTXt_SUPPORTED */
 
-  png_set_IHDR (pp, info, drawable->width, drawable->height,
-                bit_depth,
-                color_type,
-                pngvals.interlaced,
-                PNG_COMPRESSION_TYPE_BASE,
-                PNG_FILTER_TYPE_BASE);
-  png_set_compression_level (pp, pngvals.compression_level);
+      parasite = gimp_image_get_parasite (orig_image_ID, "gimp-comment");
+      if (parasite)
+        {
+          gchar *comment = g_strndup (gimp_parasite_data (parasite),
+                                      gimp_parasite_data_size (parasite));
+
+          gimp_parasite_free (parasite);
+
+          text = g_new0 (png_text, 1);
+          text->key         = "Comment";
+
+#ifdef PNG_iTXt_SUPPORTED
+
+          text->compression = PNG_ITXT_COMPRESSION_NONE;
+          text->text        = comment;
+          text->itxt_length = strlen (comment);
+
+#else
+
+          text->compression = PNG_TEXT_COMPRESSION_NONE;
+          text->text        = g_convert (comment, -1,
+                                         "ISO-8859-1", "UTF-8",
+                                         NULL, &text_length,
+                                         NULL);
+          text->text_length = text_length;
+
+#endif
+
+          if (!text->text)
+            {
+              g_free (text);
+              text = NULL;
+            }
+        }
+    }
+
+  if (text)
+    png_set_text (pp, info, text, 1);
 
   png_write_info (pp, info);
 
@@ -1524,7 +1546,9 @@ save_image (const gchar  *filename,
 
           gimp_pixel_rgn_get_rect (&pixel_rgn, pixel, 0, begin,
                                    drawable->width, num);
-          /*if we are with a RGBA image and have to pre-multiply the alpha channel */
+
+          /* If we are with a RGBA image and have to pre-multiply the
+             alpha channel */
           if (bpp == 4 && ! pngvals.save_transp_pixels)
             {
               for (i = 0; i < num; ++i)
@@ -1564,6 +1588,7 @@ save_image (const gchar  *filename,
                     }
                 }
             }
+
           /* Otherwise if we have a paletted image and transparency
            * couldn't be set, we ignore the alpha channel */
           else if (png_get_valid (pp, info, PNG_INFO_PLTE) &&
@@ -1721,7 +1746,7 @@ respin_cmap (png_structp   pp,
              gint32        image_ID,
              GimpDrawable *drawable)
 {
-  static const guchar trans[] = { 0 };
+  static guchar trans[] = { 0 };
 
   gint          colors;
   guchar       *before;
@@ -1748,10 +1773,13 @@ respin_cmap (png_structp   pp,
                                      * index - do like gif2png and swap
                                      * index 0 and index transparent */
         {
-          png_color palette[256];
+          static png_color palette[256];
           gint      i;
 
-          png_set_tRNS (pp, info, (png_bytep) trans, 1, NULL);
+          /* Set tRNS chunk values for writing later. */
+          pngg.has_trns = TRUE;
+          pngg.trans = trans;
+          pngg.num_trans = 1;
 
           /* Transform all pixels with a value = transparent to
            * 0 and vice versa to compensate for re-ordering in palette
@@ -1772,7 +1800,10 @@ respin_cmap (png_structp   pp,
               palette[i].blue = before[3 * remap[i] + 2];
             }
 
-          png_set_PLTE (pp, info, palette, colors);
+          /* Set PLTE chunk values for writing later. */
+          pngg.has_plte = TRUE;
+          pngg.palette = palette;
+          pngg.num_palette = colors;
         }
       else
         {
@@ -1780,12 +1811,19 @@ respin_cmap (png_structp   pp,
            * transparency & just use the full palette */
           g_message (_("Couldn't losslessly save transparency, "
                        "saving opacity instead."));
-          png_set_PLTE (pp, info, (png_colorp) before, colors);
+
+          /* Set PLTE chunk values for writing later. */
+          pngg.has_plte = TRUE;
+          pngg.palette = (png_colorp) before;
+          pngg.num_palette = colors;
         }
     }
   else
     {
-      png_set_PLTE (pp, info, (png_colorp) before, colors);
+      /* Set PLTE chunk values for writing later. */
+      pngg.has_plte = TRUE;
+      pngg.palette = (png_colorp) before;
+      pngg.num_palette = colors;
     }
 
   return get_bit_depth_for_palette (colors);

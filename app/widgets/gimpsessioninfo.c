@@ -30,6 +30,8 @@
 
 #include "config/gimpguiconfig.h"
 
+#include "widgets/gimpdockcontainer.h"
+
 #include "core/gimp.h"
 #include "core/gimpcontext.h"
 
@@ -465,6 +467,8 @@ gimp_session_info_restore (GimpSessionInfo   *info,
   g_return_if_fail (GIMP_IS_SESSION_INFO (info));
   g_return_if_fail (GIMP_IS_DIALOG_FACTORY (factory));
 
+  g_object_ref (info);
+
   display = gdk_display_get_default ();
 
   if (info->p->screen != DEFAULT_SCREEN)
@@ -477,7 +481,8 @@ gimp_session_info_restore (GimpSessionInfo   *info,
   info->p->screen = DEFAULT_SCREEN;
 
   if (info->p->factory_entry &&
-      ! info->p->factory_entry->dockable)
+      ! info->p->factory_entry->dockable &&
+      ! info->p->factory_entry->image_window)
     {
       GimpCoreConfig *config = gimp_dialog_factory_get_context (factory)->gimp->config;
 
@@ -509,7 +514,9 @@ gimp_session_info_restore (GimpSessionInfo   *info,
     gimp_session_info_dock_restore ((GimpSessionInfoDock *)iter->data,
                                     factory,
                                     screen,
-                                    GIMP_DOCK_WINDOW (dialog));
+                                    GIMP_DOCK_CONTAINER (dialog));
+
+  g_object_unref (info);
 }
 
 /* This function mostly lifted from
@@ -740,11 +747,15 @@ gimp_session_info_get_info (GimpSessionInfo *info)
 
   info->p->aux_info = gimp_session_info_aux_get_list (info->p->widget);
 
-  if (GIMP_IS_DOCK_WINDOW (info->p->widget))
+  if (GIMP_IS_DOCK_CONTAINER (info->p->widget))
     {
-      GList *iter = NULL;
+      GimpDockContainer *dock_container = GIMP_DOCK_CONTAINER (info->p->widget);
+      GList             *iter           = NULL;
+      GList             *docks;
 
-      for (iter = gimp_dock_window_get_docks (GIMP_DOCK_WINDOW (info->p->widget));
+      docks = gimp_dock_container_get_docks (dock_container);
+
+      for (iter = docks;
            iter;
            iter = g_list_next (iter))
         {
@@ -754,7 +765,34 @@ gimp_session_info_get_info (GimpSessionInfo *info)
             g_list_append (info->p->docks,
                            gimp_session_info_dock_from_widget (dock));
         }
+
+      g_list_free (docks);
     }
+}
+
+/**
+ * gimp_session_info_get_info_with_widget:
+ * @info:
+ * @widget: #GtkWidget to use
+ *
+ * Temporarily sets @widget on @info and calls
+ * gimp_session_info_get_info(), then restores the old widget that was
+ * set.
+ **/
+void
+gimp_session_info_get_info_with_widget (GimpSessionInfo *info,
+                                        GtkWidget       *widget)
+{
+  GtkWidget *old_widget;
+
+  g_return_if_fail (GIMP_IS_SESSION_INFO (info));
+  g_return_if_fail (GTK_IS_WIDGET (widget));
+
+  old_widget = gimp_session_info_get_widget (info);
+
+  gimp_session_info_set_widget (info, widget);
+  gimp_session_info_get_info (info);
+  gimp_session_info_set_widget (info, old_widget);
 }
 
 void

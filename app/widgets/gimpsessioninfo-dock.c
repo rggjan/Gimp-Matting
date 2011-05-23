@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include <string.h>
+
 #include <gtk/gtk.h>
 
 #include "libgimpconfig/gimpconfig.h"
@@ -28,6 +30,8 @@
 
 #include "gimpdialogfactory.h"
 #include "gimpdock.h"
+#include "gimpdockbook.h"
+#include "gimpdockcontainer.h"
 #include "gimpdockwindow.h"
 #include "gimpsessioninfo.h"
 #include "gimpsessioninfo-aux.h"
@@ -39,8 +43,29 @@
 
 enum
 {
+  SESSION_INFO_SIDE,
   SESSION_INFO_BOOK
 };
+
+
+static GimpAlignmentType gimp_session_info_dock_get_side (GimpDock *dock);
+
+
+static GimpAlignmentType
+gimp_session_info_dock_get_side (GimpDock *dock)
+{
+  GimpAlignmentType result   = -1;
+  GtkWidget        *toplevel = gtk_widget_get_toplevel (GTK_WIDGET (dock));
+
+  if (GIMP_IS_DOCK_CONTAINER (toplevel))
+    {
+      GimpDockContainer *container = GIMP_DOCK_CONTAINER (toplevel);
+
+      result = gimp_dock_container_get_dock_side (container, dock);
+    }
+
+  return result;
+}
 
 
 /*  public functions  */
@@ -52,6 +77,7 @@ gimp_session_info_dock_new (const gchar *dock_type)
 
   dock_info = g_slice_new0 (GimpSessionInfoDock);
   dock_info->dock_type = g_strdup (dock_type);
+  dock_info->side      = -1;
 
   return dock_info;
 }
@@ -88,6 +114,16 @@ gimp_session_info_dock_serialize (GimpConfigWriter    *writer,
 
   gimp_config_writer_open (writer, dock_info->dock_type);
 
+  if (dock_info->side != -1)
+    {
+      const char *side_text =
+        dock_info->side == GIMP_ALIGN_LEFT ? "left" : "right";
+      
+      gimp_config_writer_open (writer, "side");
+      gimp_config_writer_print (writer, side_text, strlen (side_text));
+      gimp_config_writer_close (writer);
+    }
+
   for (list = dock_info->books; list; list = g_list_next (list))
     gimp_session_info_book_serialize (writer, list->data);
 
@@ -105,6 +141,8 @@ gimp_session_info_dock_deserialize (GScanner             *scanner,
   g_return_val_if_fail (scanner != NULL, G_TOKEN_LEFT_PAREN);
   g_return_val_if_fail (dock_info != NULL, G_TOKEN_LEFT_PAREN);
 
+  g_scanner_scope_add_symbol (scanner, scope, "side",
+                              GINT_TO_POINTER (SESSION_INFO_SIDE));
   g_scanner_scope_add_symbol (scanner, scope, "book",
                               GINT_TO_POINTER (SESSION_INFO_BOOK));
 
@@ -126,6 +164,19 @@ gimp_session_info_dock_deserialize (GScanner             *scanner,
           switch (GPOINTER_TO_INT (scanner->value.v_symbol))
             {
               GimpSessionInfoBook *book;
+
+            case SESSION_INFO_SIDE:
+              token = G_TOKEN_IDENTIFIER;
+              if (g_scanner_peek_next_token (scanner) != token)
+                break;
+
+              g_scanner_get_next_token (scanner);
+
+              if (strcmp ("left", scanner->value.v_identifier) == 0)
+                (*dock_info)->side = GIMP_ALIGN_LEFT;
+              else
+                (*dock_info)->side = GIMP_ALIGN_RIGHT;
+              break;
 
             case SESSION_INFO_BOOK:
               g_scanner_set_scope (scanner, scope + 1);
@@ -158,6 +209,7 @@ gimp_session_info_dock_deserialize (GScanner             *scanner,
     }
 
   g_scanner_scope_remove_symbol (scanner, scope, "book");
+  g_scanner_scope_remove_symbol (scanner, scope, "side");
 
   return token;
 }
@@ -184,24 +236,26 @@ gimp_session_info_dock_from_widget (GimpDock *dock)
     }
 
   dock_info->books = g_list_reverse (dock_info->books);
+  dock_info->side  = gimp_session_info_dock_get_side (dock);
 
   return dock_info;
 }
 
-void
+GimpDock *
 gimp_session_info_dock_restore (GimpSessionInfoDock *dock_info,
                                 GimpDialogFactory   *factory,
                                 GdkScreen           *screen,
-                                GimpDockWindow      *dock_window)
+                                GimpDockContainer   *dock_container)
 {
-  GtkWidget     *dock       = NULL;
-  GList         *iter       = NULL;
-  GimpUIManager *ui_manager = NULL;
+  gint           n_books = 0;
+  GtkWidget     *dock;
+  GList         *iter;
+  GimpUIManager *ui_manager;
 
-  g_return_if_fail (GIMP_IS_DIALOG_FACTORY (factory));
-  g_return_if_fail (GDK_IS_SCREEN (screen));
+  g_return_val_if_fail (GIMP_IS_DIALOG_FACTORY (factory), NULL);
+  g_return_val_if_fail (GDK_IS_SCREEN (screen), NULL);
 
-  ui_manager = gimp_dock_window_get_ui_manager (GIMP_DOCK_WINDOW (dock_window));
+  ui_manager = gimp_dock_container_get_ui_manager (dock_container);
   dock       = gimp_dialog_factory_dialog_new (factory,
                                                screen,
                                                ui_manager,
@@ -209,14 +263,14 @@ gimp_session_info_dock_restore (GimpSessionInfoDock *dock_info,
                                                -1 /*view_size*/,
                                                FALSE /*present*/);
 
-  g_return_if_fail (GIMP_IS_DOCK (dock));
+  g_return_val_if_fail (GIMP_IS_DOCK (dock), NULL);
 
   /* Add the dock to the dock window immediately so the stuff in the
    * dock has access to e.g. a dialog factory
    */
-  gimp_dock_window_add_dock (GIMP_DOCK_WINDOW (dock_window),
-                             GIMP_DOCK (dock),
-                             -1);
+  gimp_dock_container_add_dock (dock_container,
+                                GIMP_DOCK (dock),
+                                dock_info);
 
   /* Note that if it is a toolbox, we will get here even though we
    * don't have any books
@@ -227,20 +281,62 @@ gimp_session_info_dock_restore (GimpSessionInfoDock *dock_info,
     {
       GimpSessionInfoBook *book_info = iter->data;
       GtkWidget           *dockbook;
-      GtkWidget           *parent;
 
       dockbook = GTK_WIDGET (gimp_session_info_book_restore (book_info,
                                                              GIMP_DOCK (dock)));
-      parent   = gtk_widget_get_parent (dockbook);
 
-      if (GTK_IS_VPANED (parent))
+      if (dockbook)
         {
-          GtkPaned *paned = GTK_PANED (parent);
+          GtkWidget *parent = gtk_widget_get_parent (dockbook);
 
-          if (dockbook == gtk_paned_get_child2 (paned))
-            gtk_paned_set_position (paned, book_info->position);
+          n_books++;
+
+          if (GTK_IS_PANED (parent))
+            {
+              GtkPaned *paned = GTK_PANED (parent);
+
+              if (dockbook == gtk_paned_get_child2 (paned))
+                gtk_paned_set_position (paned, book_info->position);
+            }
         }
     }
 
+  /* Now remove empty dockbooks from the list, check the comment in
+   * gimp_session_info_book_restore() which explains why the dock
+   * can contain empty dockbooks at all
+   */
+  if (dock_info && dock_info->books)
+    {
+      GList *books;
+
+      books = g_list_copy (gimp_dock_get_dockbooks (GIMP_DOCK (dock)));
+
+      while (books)
+        {
+          GtkContainer *dockbook = books->data;
+          GList        *children = gtk_container_get_children (dockbook);
+
+          if (children)
+            {
+              g_list_free (children);
+            }
+          else
+            {
+              gimp_dock_remove_book (GIMP_DOCK (dock), GIMP_DOCKBOOK (dockbook));
+              n_books--;
+            }
+
+          books = g_list_remove (books, dockbook);
+        }
+    }
+
+  /*  if we removed all books again, the dock was destroyed, so bail out  */
+  if (dock_info && dock_info->books && n_books == 0)
+    {
+      return NULL;
+    }
+
   gtk_widget_show (dock);
+
+  return GIMP_DOCK (dock);
 }

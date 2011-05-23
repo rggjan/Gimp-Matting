@@ -205,9 +205,9 @@ session_init (Gimp *gimp)
                       GIMP_LOG (DIALOG_FACTORY,
                                 "failed to parse session info %p, not adding",
                                 info);
-
-                      g_object_unref (info);
                     }
+
+                  g_object_unref (info);
                 }
               else
                 {
@@ -364,7 +364,14 @@ session_clear (Gimp    *gimp,
 static gchar *
 session_filename (Gimp *gimp)
 {
-  gchar *filename = gimp_personal_rc_file ("sessionrc");
+  const gchar *basename;
+  gchar       *filename;
+
+  basename = g_getenv ("GIMP_TESTING_SESSIONRC_NAME");
+  if (! basename)
+    basename = "sessionrc";
+
+  filename = gimp_personal_rc_file (basename);
 
   if (gimp->session_name)
     {

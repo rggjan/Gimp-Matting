@@ -659,7 +659,7 @@ exchange (GimpDrawable *drawable,
   guchar       *src_row, *dest_row;
   gint          x, y, bpp = drawable->bpp;
   gboolean      has_alpha;
-  gint          x1, y1, x2, y2;
+  gint          x1, y1, y2;
   gint          width, height;
   GimpRGB       min;
   GimpRGB       max;
@@ -668,17 +668,14 @@ exchange (GimpDrawable *drawable,
     {
       gimp_preview_get_position (preview, &x1, &y1);
       gimp_preview_get_size (preview, &width, &height);
-
-      x2 = x1 + width;
-      y2 = y1 + height;
     }
-  else
+  else if (! gimp_drawable_mask_intersect (drawable->drawable_id,
+                                           &x1, &y1, &width, &height))
     {
-      gimp_drawable_mask_bounds (drawable->drawable_id, &x1, &y1, &x2, &y2);
-
-      width  = x2 - x1;
-      height = y2 - y1;
+      return;
     }
+
+  y2 = y1 + height;
 
   has_alpha = gimp_drawable_has_alpha (drawable->drawable_id);
   /* allocate memory */
