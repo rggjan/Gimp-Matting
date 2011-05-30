@@ -88,6 +88,14 @@
 #define GET_PIXEL(big_cache, x, y, color) big_cache[(64+y)*BIG_CACHE_W\
                                            +(64+x)*BIG_CACHE_CHANNELS+color]
 
+#define BIGGER_CACHE_CHANNELS 4
+#define BIGGER_CACHE_W 64*7*BIGGER_CACHE_CHANNELS
+#define BIGGER_CACHE_H 64*7
+#define BIGGER_CACHE_SIZE BIGGER_CACHE_W*BIGGER_CACHE_H
+
+#define GET_PIXEL_BIGGER(bigger_cache, x, y, color) bigger_cache[(192+y)*BIGGER_CACHE_W\
+                                           +(192+x)*BIGGER_CACHE_CHANNELS+color]
+
 /* #define SIOX_DEBUG  */
 
 typedef struct
@@ -323,6 +331,165 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
 }
 
 static void
+load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
+{
+  gint    xdiff;
+  gint    ydiff;
+  gint    x, y;
+  gint    bx, by;
+  gint    width_tile, height_tile;
+  
+  Tile   *src_tile;
+  guchar *pointer;
+
+  g_return_if_fail (tile_manager_bpp(source) == 4);
+
+  for (xdiff = -3; xdiff <= 3; xdiff++)
+    {
+      for (ydiff = -3; ydiff <= 3; ydiff++)
+        {
+          // No idea why we have tx + ydiff here, but otherwise it doesn't work!
+          src_tile = tile_manager_get_at (source, tx + ydiff, ty + xdiff, TRUE, FALSE);
+          width_tile = 0;
+          height_tile = 0;
+
+          if (src_tile)
+            {
+              pointer = tile_data_pointer (src_tile, 0, 0);
+              width_tile = tile_ewidth (src_tile);
+              height_tile = tile_eheight (src_tile);
+
+              for (x = 0; x < width_tile; x++) // TODO what if src tile not that big?
+                {
+                  bx = (xdiff + 3)*64 + x;
+                  for (y = 0; y < height_tile; y++)
+                    {
+                      by = (ydiff + 3)*64 + y;
+
+                      big_cache[by * BIGGER_CACHE_W + bx * 4] = *pointer;
+                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 1] = *(pointer + 1);
+                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 2] = *(pointer + 2);
+                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 3] = *(pointer + 3);
+
+                      pointer += 4;
+                    }
+                }
+              
+              tile_release (src_tile, FALSE);
+            }
+
+          for (x = width_tile; x < 64; x++)
+            {
+              bx = (xdiff + 3)*64 + x;
+              for (y = height_tile; y < 64; y++)
+                {
+                  by = (ydiff + 3)*64 + y;
+
+                  big_cache[by * BIGGER_CACHE_W + bx * 4] = 0;
+                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 1] = 0;
+                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 2] = 0;
+                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 3] = 128;
+                }
+            }
+        }
+    }
+}
+
+// retrieves the x/y coordinates form a key
+static void
+get_pos_from_key (guchar *key,
+                  gint* x,
+                  gint* y)
+{
+    guchar xtemp[5], ytemp[5];
+    gint iter;
+    
+    for(iter=0; iter<5; iter++)
+    {
+        xtemp[iter] = key[iter];
+        ytemp[iter] = key[iter+6];
+    }
+    // TODO: xtemp has some kind of weird character... doesn't affect x though
+    *x = (gint) atoi(&xtemp);
+    *y = (gint) atoi(&ytemp);
+}
+
+// searches for known regions for a given unknown pixel in a hash table
+static void
+search_neighborhood (gpointer key,
+                     gpointer value,
+	             gpointer *args)
+{
+    gint pos_x, pos_y;
+    gint tx, ty;
+    gint x, y, z;
+    guchar values[3*4];
+    guchar tempval;
+    double angle;
+    gboolean found[4];
+    gint permutation[4];
+    Tile        *tile;
+    guchar      *pointer;
+    
+    found[0] = FALSE; found[1] = FALSE; found[2] = FALSE; found[3] = FALSE;
+    permutation[0] = 0; permutation[1] = 1; permutation[2] = 0; permutation[3] = -1;
+    
+   
+    get_pos_from_key(key, &pos_x, &pos_y);
+    
+    angle = (pos_x % 3) + (pos_y % 3) * 3;
+    
+    tx = (pos_x - (pos_x % 64))/64;
+    ty = (pos_y - (pos_y % 64))/64;
+    pos_x = pos_x - 64*tx;
+    pos_y = pos_y - 64*ty;
+    
+    // TODO: add list of sorted unknown regions to traverse so that same tiles are not loaded several times
+    if(args[3] != tx && args[4] != ty)
+    {
+        load_bigger_cache((TileManager*) args[2], (guchar*) args[0], tx, ty);
+        g_printf("Cache loaded! for tiles %i %i\n", tx, ty);
+        args[3] = tx;
+        args[4] = ty;
+    }
+    
+    if (angle == 0)
+    {
+        for (x=1; x<3*64; x++)
+        {
+            for (y=1; y<3*64; y++)
+            {
+                for (z=0; z<4; z++)
+                {
+                    if (!found[z])
+                    {
+                        tempval = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 3);
+                        //printf("tempval %i\n", tempval);
+                        if (tempval == MATTING_USER_FOREGROUND || tempval == MATTING_USER_BACKGROUND)
+                        {
+                            printf("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[z]*x, permutation[(z+1) % 4]*y);
+                            values[z*3] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 0);
+                            values[z*3+1] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 1);
+                            values[z*3+2] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 2);
+                            found[z] = TRUE;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tile = tile_manager_get_at (args[1], tx, ty, TRUE, TRUE);
+    pointer = tile_data_pointer (tile, pos_x, pos_y);
+    pointer[0] = values[0];
+    pointer[1] = values[1];
+    pointer[2] = values[2];
+    pointer[3] = 255;
+    tile_release(tile, TRUE);
+    //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
+}
+
+static void
 initialize_new_layer (TileManager* source_layer,
                       TileManager* destination_layer,
                       TileManager* mask_layer)
@@ -543,15 +710,27 @@ siox_foreground_extract (SioxState          *state,
 {
   gint         width, height;
   guchar      *big_cache;
+  guchar      *bigger_cache;
   gint         tiles_x, tiles_y;
 
   Tile        *tile;
 
   gint         tx, ty, x, y;
   guchar      *pointer;
+  gpointer     foreach_args[5];
+  gint         loaded_tile_x, loaded_tile_y;
+  guchar      *resstr;
   gint         i;
 
-  gboolean     found_something;
+  gboolean     found_something, unknown;
+  
+  static GHashTable *unknown_hash = NULL;
+  guchar      *unknown_pixel;
+  guchar      *resulttest;
+  
+  resulttest = g_malloc (8);
+
+  unknown_hash = g_hash_table_new(g_str_hash, g_str_equal);
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -607,8 +786,28 @@ siox_foreground_extract (SioxState          *state,
                       pointer[1] = GET_PIXEL (big_cache, x, y, 1);
                       pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
+                      unknown = (GET_PIXEL (big_cache, x, y, 3) == 128); // we do two checks if we have an unknown (also in search_for...)
+
                       if (search_for_neighbours (big_cache, x, y, pointer + 3))
+                      {
                         found_something = TRUE;
+                      } else {
+                          if (unknown)
+                          {
+                          unknown_pixel = g_malloc (8);
+                          unknown_pixel[0] = pointer[0];
+                          unknown_pixel[1] = pointer[1];
+                          unknown_pixel[2] = pointer[2];
+                          unknown_pixel[3] = pointer[3];
+                          unknown_pixel[4] = 0;
+                          unknown_pixel[5] = 0;
+                          unknown_pixel[6] = 0;
+                          unknown_pixel[7] = 0;
+                          resstr = g_malloc (511);
+                          g_sprintf(resstr, "%5d/%5d", (tx*64)+x, (ty*64)+y);
+                          g_hash_table_insert(unknown_hash, resstr, unknown_pixel);
+                          }
+                      }
                     }
                 }
 
@@ -618,9 +817,20 @@ siox_foreground_extract (SioxState          *state,
       tmp = working_layer;
       working_layer = result_layer;
       result_layer = tmp;
-    }
+    }  
   
   update_mask (result_layer, mask);
+  
+  bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
+  foreach_args[0] = bigger_cache;
+  foreach_args[1] = working_layer;
+  foreach_args[2] = result_layer;
+  loaded_tile_x = -1;
+  loaded_tile_y = -1;
+  foreach_args[3] = &loaded_tile_x;
+  foreach_args[4] = &loaded_tile_y;
+  
+  g_hash_table_foreach(unknown_hash, (GHFunc) search_neighborhood, foreach_args);
 
   // TODO do this only once
   g_free(big_cache);
