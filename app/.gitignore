@@ -8,3 +8,4 @@
 /git-version.h
 /libapp.a
 /makefile.mingw
+/*.ppm
