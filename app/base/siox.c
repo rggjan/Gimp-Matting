@@ -360,19 +360,34 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int ra
               tile_release (src_tile, FALSE);
             }
 
-          for (y = height_tile; y < 64; y++)
+          for (y = 0; y < 64; y++)
             {
               by = (ydiff + radius)*64 + y;
               for (x = width_tile; x < 64; x++)
                 {
                   bx = (xdiff + radius)*64 + x;
 
-                  big_cache[by * BIG_CACHE_W + bx * 4] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4] = 255;
                   big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
                   big_cache[by * BIG_CACHE_W + bx * 4 + 2] = 0;
                   big_cache[by * BIG_CACHE_W + bx * 4 + 3] = 128;
                 }
             }
+          
+           for (y = height_tile; y < 64; y++)
+            {
+              by = (ydiff + radius)*64 + y;
+              for (x = 0; x < width_tile; x++)
+                {
+                  bx = (xdiff + radius)*64 + x;
+
+                  big_cache[by * BIG_CACHE_W + bx * 4] = 255;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 2] = 0;
+                  big_cache[by * BIG_CACHE_W + bx * 4 + 3] = 128;
+                }
+            }
+          
         }
     }
 }
