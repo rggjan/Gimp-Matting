@@ -294,7 +294,7 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
 
-              for (x = 0; x < width_tile; x++) // TODO what if src tile not that big?
+              for (x = 0; x < width_tile; x++)
                 {
                   bx = (xdiff + 1)*64 + x;
                   for (y = 0; y < height_tile; y++)
@@ -359,7 +359,7 @@ load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
 
-              for (x = 0; x < width_tile; x++) // TODO what if src tile not that big?
+              for (x = 0; x < width_tile; x++)
                 {
                   bx = (xdiff + 3)*64 + x;
                   for (y = 0; y < height_tile; y++)
@@ -397,14 +397,14 @@ load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
 
 // retrieves the x/y coordinates form a key
 
-static void
+static inline void
 get_pos_from_key (gint64 *key,
                   gint *x,
                   gint *y)
 {
-  gint *temp = key;
-  *x = *temp;
-  *y = *(temp + 1);
+  gint64 temp = *key;
+  *x = (temp>>32 & 0xffffffff);
+  *y = temp & 0xffffffff;
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
@@ -511,7 +511,9 @@ search_neighborhood (gpointer key,
   //g_printf("key: %d\n", key);
 
   // TODO do this with shift, (little endian problems...)
-  get_pos_from_key (key, &pos_y, &pos_x); //TODO: x and y swapped here!
+  get_pos_from_key (key, &pos_x, &pos_y); //TODO: x and y swapped here!
+  
+  g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
 
   // TODO add pi somehow
   angle = (pos_x % 3) + (pos_y % 3) * 3;
@@ -544,12 +546,16 @@ search_neighborhood (gpointer key,
             }
           else
             {
-              a = GET_PIXEL_BIGGER (((guchar*) args[0]), x, y, 3);
-              r = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction] * x + pos_x, permutation[(direction + 1) % 4] * y + pos_y, 0);
-              g = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction] * x + pos_x, permutation[(direction + 1) % 4] * y + pos_y, 1);
-              b = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction] * x + pos_x, permutation[(direction + 1) % 4] * y + pos_y, 2);
+              gint xtmp = permutation[direction] * x + pos_x;
+              gint ytmp = permutation[(direction + 1) % 4] * y + pos_y;
+              
+              r = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 0);
+              g = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 1);
+              b = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 2);
+              a = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 3);
 
               // check if it's foreground or background, depending on a
+              // toggle = 0 equals foreground
               for (toggle = 0; toggle < 2; toggle++)
                 {
                   // add gradient distance (as float)
@@ -562,9 +568,9 @@ search_neighborhood (gpointer key,
                                             + (prevval[direction + 2] - b)*(prevval[direction + 2] - b));
                     }
 
-                  if (a == (toggle == 1 ? 255 : 0) && !found[direction + toggle])
+                  if (a == (toggle == 0 ? 255 : 0) && !found[direction*2 + toggle])
                     {
-                      printf ("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[direction] * x, permutation[(direction + 1) % 4] * y);
+                      printf ("found for pixel pos: %i %i, pixel location %i %i\n", pos_x, pos_y, xtmp, ytmp);
                       values[direction * 16 + (toggle * 8)] = r;
                       values[direction * 16 + 1 + (toggle * 8)] = g;
                       values[direction * 16 + 2 + (toggle * 8)] = b;
@@ -931,7 +937,7 @@ siox_foreground_extract (SioxState          *state,
                           unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
                           if (unknown)
                             {
-                              unknown_pixel = g_malloc (8);
+                              unknown_pixel = g_malloc (8 * sizeof(guchar));
                               unknown_pixel[0] = pointer[0];
                               unknown_pixel[1] = pointer[1];
                               unknown_pixel[2] = pointer[2];
@@ -941,8 +947,11 @@ siox_foreground_extract (SioxState          *state,
                               unknown_pixel[6] = 0;
                               unknown_pixel[7] = 0;
                               // TODO: free this memory
-                              gint64 *addr = g_malloc (8);
-                              *addr = (x << 32) + y;
+                              gint64 *addr = g_malloc (sizeof(gint64));
+                              *addr = (((gint64)x) << 32) + y;
+                              
+                              g_printf("Inserting xy %i, %i\n", x, y);
+                              
                               g_hash_table_insert (unknown_hash, addr, unknown_pixel);
                             }
                         }
