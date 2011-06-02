@@ -377,71 +377,6 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int ra
     }
 }
 
-static void
-load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
-{
-  gint    xdiff;
-  gint    ydiff;
-  gint    x, y;
-  gint    bx, by;
-  gint    width_tile, height_tile;
-  
-  Tile   *src_tile;
-  guchar *pointer;
-
-  g_return_if_fail (tile_manager_bpp(source) == 4);
-
-  for (xdiff = -3; xdiff <= 3; xdiff++)
-    {
-      for (ydiff = -3; ydiff <= 3; ydiff++)
-        {
-          // No idea why we have tx + ydiff here, but otherwise it doesn't work!
-          src_tile = tile_manager_get_at (source, tx + ydiff, ty + xdiff, TRUE, FALSE);
-          width_tile = 0;
-          height_tile = 0;
-
-          if (src_tile)
-            {
-              pointer = tile_data_pointer (src_tile, 0, 0);
-              width_tile = tile_ewidth (src_tile);
-              height_tile = tile_eheight (src_tile);
-
-              for (x = 0; x < width_tile; x++)
-                {
-                  bx = (xdiff + 3)*64 + x;
-                  for (y = 0; y < height_tile; y++)
-                    {
-                      by = (ydiff + 3)*64 + y;
-
-                      big_cache[by * BIGGER_CACHE_W + bx * 4] = *pointer;
-                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 1] = *(pointer + 1);
-                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 2] = *(pointer + 2);
-                      big_cache[by * BIGGER_CACHE_W + bx * 4 + 3] = *(pointer + 3);
-
-                      pointer += 4;
-                    }
-                }
-              
-              tile_release (src_tile, FALSE);
-            }
-
-          for (x = width_tile; x < 64; x++)
-            {
-              bx = (xdiff + 3)*64 + x;
-              for (y = height_tile; y < 64; y++)
-                {
-                  by = (ydiff + 3)*64 + y;
-
-                  big_cache[by * BIGGER_CACHE_W + bx * 4] = 255;
-                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 1] = 0;
-                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 2] = 0;
-                  big_cache[by * BIGGER_CACHE_W + bx * 4 + 3] = 128;
-                }
-            }
-        }
-    }
-}
-
 // retrieves the x/y coordinates form a key
 
 static inline void
@@ -574,7 +509,7 @@ search_neighborhood (gpointer key,
   // TODO: add list of sorted unknown regions to traverse so that same tiles are not loaded several times
   if (args[3] != tx && args[4] != ty)
     {
-      load_bigger_cache ((TileManager*) args[2], (guchar*) args[0], tx, ty);
+      load_big_cache ((TileManager*) args[2], (guchar*) args[0], tx, ty, 3);
       g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
       args[3] = tx;
       args[4] = ty;
