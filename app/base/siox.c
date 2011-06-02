@@ -152,44 +152,51 @@ siox_progress_update (SioxProgressFunc  progress_callback,
     progress_callback (progress_data, value);
 }
 
-static void debug_image(const char* filename, int dimx, int dimy, guchar *data, int padding, int num_colors)
+static void
+debug_image (const char* filename, int dimx, int dimy, guchar *data, int padding, int num_colors)
 {
   int i, j;
-  FILE *fp = fopen(filename, "wb"); /* b - binary mode */
+  FILE *fp = fopen (filename, "wb"); /* b - binary mode */
 
-  if (num_colors == 3) {
-    fprintf(fp, "P6\n%d %d\n255\n", dimx, dimy);
-  } else if (num_colors == 1) {
-    fprintf(fp, "P5\n%d %d\n255\n", dimx, dimy);
-  } else {
-    printf("Problem!\n");
-    exit(1);
-  }
+  if (num_colors == 3)
+    {
+      fprintf (fp, "P6\n%d %d\n255\n", dimx, dimy);
+    }
+  else if (num_colors == 1)
+    {
+      fprintf (fp, "P5\n%d %d\n255\n", dimx, dimy);
+    }
+  else
+    {
+      printf ("Problem!\n");
+      exit (1);
+    }
 
   guchar* current = data;
 
   for (j = 0; j < dimy; ++j)
-  {
-    for (i = 0; i < dimx; ++i)
     {
-      if (num_colors == 3) {
-        static unsigned char color[3];
-        color[0] = current[0];
-        color[1] = current[1];
-        color[2] = current[2];
-        (void) fwrite(color, 1, 3, fp);
-      }
-      else 
-      {
-        static unsigned char color;
-        color = current[0];
-        (void) fwrite(&color, 1, 1, fp);
-      }
-      
-      current += padding;
+      for (i = 0; i < dimx; ++i)
+        {
+          if (num_colors == 3)
+            {
+              static unsigned char color[3];
+              color[0] = current[0];
+              color[1] = current[1];
+              color[2] = current[2];
+              (void) fwrite (color, 1, 3, fp);
+            }
+          else
+            {
+              static unsigned char color;
+              color = current[0];
+              (void) fwrite (&color, 1, 1, fp);
+            }
+
+          current += padding;
+        }
     }
-  }
-  fclose(fp);
+  fclose (fp);
 }
 
 /*  assumes that lab starts with an array of floats (l,a,b)  */
