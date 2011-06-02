@@ -314,7 +314,7 @@ siox_init (TileManager  *pixels,
 }
 
 static void
-load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
+load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int radius)
 {
   gint    xdiff;
   gint    ydiff;
@@ -327,12 +327,11 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
 
   g_return_if_fail (tile_manager_bpp(source) == 4);
 
-  for (xdiff = -1; xdiff <= 1; xdiff++)
+  for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
-      for (ydiff = -1; ydiff <= 1; ydiff++)
+      for (xdiff = -radius; xdiff <= radius; xdiff++)
         {
-          // No idea why we have tx + ydiff here, but otherwise it doesn't work!
-          src_tile = tile_manager_get_at (source, tx + ydiff, ty + xdiff, TRUE, FALSE);
+          src_tile = tile_manager_get_at (source, tx + xdiff, ty + ydiff, TRUE, FALSE);
           width_tile = 0;
           height_tile = 0;
 
@@ -342,12 +341,12 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
 
-              for (x = 0; x < width_tile; x++)
+              for (y = 0; y < height_tile; y++)
                 {
-                  bx = (xdiff + 1)*64 + x;
-                  for (y = 0; y < height_tile; y++)
+                  by = (ydiff + radius)*64 + y;
+                  for (x = 0; x < width_tile; x++)
                     {
-                      by = (ydiff + 1)*64 + y;
+                      bx = (xdiff + radius)*64 + x;
 
                       big_cache[by * BIG_CACHE_W + bx * 4] = *pointer;
                       big_cache[by * BIG_CACHE_W + bx * 4 + 1] = *(pointer + 1);
@@ -361,12 +360,12 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
               tile_release (src_tile, FALSE);
             }
 
-          for (x = width_tile; x < 64; x++)
+          for (y = height_tile; y < 64; y++)
             {
-              bx = (xdiff + 1)*64 + x;
-              for (y = height_tile; y < 64; y++)
+              by = (ydiff + radius)*64 + y;
+              for (x = width_tile; x < 64; x++)
                 {
-                  by = (ydiff + 1)*64 + y;
+                  bx = (xdiff + radius)*64 + x;
 
                   big_cache[by * BIG_CACHE_W + bx * 4] = 0;
                   big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
@@ -970,12 +969,14 @@ siox_foreground_extract (SioxState          *state,
         {
           for (ty = 0; ty < tiles_y - 1; ty++)
             {
-              load_big_cache (working_layer, big_cache, tx, ty);
+              load_big_cache (working_layer, big_cache, tx, ty, 1);
 
-              if (tx == 0 && ty == 0) {
-                debug_image("test.ppm", 64*3, 64*3, big_cache, 4, 3);
-                debug_image("test_alpha.ppm", 64*3, 64*3, big_cache+3, 4, 1);
-              }
+              static char buffer[100];
+              snprintf(buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
+              debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
+
+              snprintf(buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
+              debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
 
               tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
               pointer = tile_data_pointer (tile, 0, 0);
