@@ -397,50 +397,115 @@ load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
 
 // retrieves the x/y coordinates form a key
 static void
-get_pos_from_key (guchar *key,
-                  gint* x,
-                  gint* y)
+get_pos_from_key (gint64 *key,
+                  gint *x,
+                  gint *y)
 {
-    guchar xtemp[5], ytemp[5];
-    gint iter;
-    
-    for(iter=0; iter<5; iter++)
+    gint *temp = key;
+    *x = *temp;
+    *y = *(temp+1);
+}
+
+// evaluate the energy function for found color fg/bg for pixel situated at x/y
+static float
+objective_function   (guchar *fg,
+                      guchar *bg,
+                      gint x,
+                      gint y,
+                      guchar *bigger_cache)
+{
+    gint en = 3;
+    gint ea = 2;
+    gint ef = 1;
+    gint eb = 4;
+    gint xi, yi;
+    float np, ap, dpb, dpf, *pointer;
+    float newAlpha, pfp, r, g, b;
+
+    dpb = pow(bg[3], ef);
+    dpf = pow(fg[3], ef);
+
+    for (xi=-1; xi<2; xi++)
     {
-        xtemp[iter] = key[iter];
-        ytemp[iter] = key[iter+6];
+        for (yi=-1; yi<2; yi++)
+        {
+            if(xi != 0 || yi!= 0)
+            {
+                r = GET_PIXEL_BIGGER (bigger_cache, x+xi, y+yi, 0);
+                g = GET_PIXEL_BIGGER (bigger_cache, x+xi, y+yi, 1);
+                b = GET_PIXEL_BIGGER (bigger_cache, x+xi, y+yi, 2);
+                newAlpha = (fg[0]-bg[0])*r + (fg[1]-bg[1])*g + (fg[2]-bg[2])*b;
+                newAlpha = newAlpha / sqrt((fg[0]-bg[0])*(fg[0]-bg[0])+(fg[1]-bg[1])*(fg[1]-bg[1])+(fg[2]-bg[2])*(fg[2]-bg[2]));
+                // TODO: check if it should be 1 - newAlpha
+                newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
+                np += (r - newAlpha*fg[0] + (1-newAlpha)*bg[0])*(r - newAlpha*fg[0] + (1-newAlpha)*bg[0])
+                        + (g - newAlpha*fg[1] + (1-newAlpha)*bg[1])*(g - newAlpha*fg[0] + (1-newAlpha)*bg[1])
+                        + (b - newAlpha*fg[2] + (1-newAlpha)*bg[2])*(b - newAlpha*fg[0] + (1-newAlpha)*bg[2]);
+            }
+        }
     }
-    // TODO: xtemp has some kind of weird character... doesn't affect x though
-    *x = (gint) atoi(&xtemp);
-    *y = (gint) atoi(&ytemp);
+
+    // TODO: this calculation will happen twice (also when storing the final value)
+    r = GET_PIXEL_BIGGER (bigger_cache, x, y, 0);
+    g = GET_PIXEL_BIGGER (bigger_cache, x, y, 1);
+    b = GET_PIXEL_BIGGER (bigger_cache, x, y, 2);
+    newAlpha = (fg[0]-bg[0])*r + (fg[1]-bg[1])*g + (fg[2]-bg[2])*b;
+    newAlpha = newAlpha / sqrt((fg[0]-bg[0])*(fg[0]-bg[0])+(fg[1]-bg[1])*(fg[1]-bg[1])+(fg[2]-bg[2])*(fg[2]-bg[2]));
+    // TODO: check if it should be 1 - newAlpha
+    newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
+
+    pointer = &fg[4];
+    pfp = *pointer;
+    pointer = &bg[4];
+    pfp = *pointer / (pfp + *pointer);
+    // TODO: should newAlpha be 1 or 255 here?
+    ap = pfp + (1-2*pfp)*newAlpha;
+
+    return  np + ap + dpb + dpf;
 }
 
 // searches for known regions for a given unknown pixel in a hash table
 static void
 search_neighborhood (gpointer key,
-                     gpointer value,
+                     guchar *value,
 	             gpointer *args)
 {
     gint pos_x, pos_y;
     gint tx, ty;
-    gint x, y, z;
-    guchar values[3*4];
-    guchar tempval;
+    gint x, y, z0, z1, z2;
+    guchar values[8*4*2]; //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
+    guchar prevval[3*4];
+    guchar a;
     double angle;
-    gboolean found[4];
+    gboolean found[8];
     gint permutation[4];
     Tile        *tile;
     guchar      *pointer;
+    float       *pointertemp;
+
+    for  (z1 = 0; z1<8; z1++)
+    {
+        found[z1] = FALSE;
+    }
+
+    // initialize to original value
+    for (z0 = 0; z0<4; z0++)
+    {
+        prevval[z0] = value[0];
+        prevval[z0+1] = value[1];
+        prevval[z0+2] = value[2];
+    }
+    permutation[0] = 1; permutation[1] = 1; permutation[2] = -1; permutation[3] = -1;
     
-    found[0] = FALSE; found[1] = FALSE; found[2] = FALSE; found[3] = FALSE;
-    permutation[0] = 0; permutation[1] = 1; permutation[2] = 0; permutation[3] = -1;
-    
-   
-    get_pos_from_key(key, &pos_x, &pos_y);
+
+    //g_printf("key: %d\n", key);
+    get_pos_from_key(key, &pos_y, &pos_x); //TODO: x and y swapped here!
     
     angle = (pos_x % 3) + (pos_y % 3) * 3;
     
     tx = (pos_x - (pos_x % 64))/64;
     ty = (pos_y - (pos_y % 64))/64;
+
     pos_x = pos_x - 64*tx;
     pos_y = pos_y - 64*ty;
     
@@ -452,42 +517,101 @@ search_neighborhood (gpointer key,
         args[3] = tx;
         args[4] = ty;
     }
-    
-    if (angle == 0)
+
+    guchar r, g, b;
+    for (z0 = 6; z0 < 3*64; z0 += 6)
     {
-        for (x=1; x<3*64; x++)
+        x = floor(cos(angle) * z0);
+        y = floor(sin(angle) * z0);
+        for (z1=0; z1<4; z1++)
         {
-            for (y=1; y<3*64; y++)
+            if (found[z1] && found[z1+1])
             {
-                for (z=0; z<4; z++)
+                break;
+            }
+            else
+            {
+                a = GET_PIXEL_BIGGER (((guchar*) args[0]), x, y, 3);
+                r = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 0);
+                g = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 1);
+                b = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 2);
+
+                // check if it's foreground or background, depending on a
+                for (z2 = 0; z2<2; z2++)
                 {
-                    if (!found[z])
+                    // add gradient distance (as float)
+                    if (!found[z1+z2])
                     {
-                        tempval = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 3);
-                        //printf("tempval %i\n", tempval);
-                        if (tempval == MATTING_USER_FOREGROUND || tempval == MATTING_USER_BACKGROUND)
-                        {
-                            printf("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[z]*x, permutation[(z+1) % 4]*y);
-                            values[z*3] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 0);
-                            values[z*3+1] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 1);
-                            values[z*3+2] = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z]*x + pos_x, permutation[(z+1) % 4]*y + pos_y, 2);
-                            found[z] = TRUE;
-                        }
+                        // TODO: Check if values is initialized to zero
+                        pointertemp = &values[z1*16+(z2*8)+4];
+                        *pointertemp += sqrt((prevval[z1] - r)*(prevval[z1] - r)
+                                                          + (prevval[z1+1] - g)*(prevval[z1+1] - g)
+                                                          + (prevval[z1+2] - b)*(prevval[z1+2] - b));
+                    }
+                    
+                    if (a == (z2==1 ? 255 : 0) && !found[z1+z2])
+                    {
+                        printf("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[z1]*x, permutation[(z1+1) % 4]*y);
+                        values[z1*16+(z2*8)] = r;
+                        values[z1*16+1+(z2*8)] = g;
+                        values[z1*16+2+(z2*8)] = b;
+                        values[z1*16+3+(z2*8)] = z0;
+                        found[z1+z2] = TRUE;
                     }
                 }
             }
         }
     }
 
+    float min = -1;
+    gint minindexf = -1;
+    gint minindexb = -1;
+    float temp;
+
+    // calculate energy function for every fg/bg pair
+    for (z0=0; z0<4; z0++)
+    {
+        if (found[z0*2])
+        {
+            for (z1=0; z1<4; z1++)
+            {
+                if (found[z1*2+1])
+                {
+                    temp = objective_function(&values[z0*16],
+                                              &values[z1*16 + 8],
+                                              pos_x,
+                                              pos_y,
+                                              args[0]);
+                    if (temp < min || min < 0)
+                    {
+                        min = temp;
+                        minindexf = z0;
+                        minindexb = z1;
+                    }
+                }
+
+            }
+        }
+    }
     tile = tile_manager_get_at (args[1], tx, ty, TRUE, TRUE);
     pointer = tile_data_pointer (tile, pos_x, pos_y);
-    pointer[0] = values[0];
-    pointer[1] = values[1];
-    pointer[2] = values[2];
+
+    
+    float newAlpha = (values[minindexf]-values[minindexb])*value[0] + (values[minindexf+1]-values[minindexb+1])*value[1] + (values[minindexf+2]-values[minindexb+2])*value[2];
+    newAlpha = newAlpha / sqrt((values[minindexf]-values[minindexb])*(values[minindexf]-values[minindexb])+(values[minindexf+1]-values[minindexb+1])*(values[minindexf+1]-values[minindexb+1])+(values[minindexf+2]-values[minindexb+2])*(values[minindexf+2]-values[minindexb+2]));
+    // TODO: check if it should be 1 - newAlpha
+    newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
+
+    // test: do combination of best match
+    // should return a very similar image as before
+    pointer[0] = floor(values[minindexf]*newAlpha) + floor(values[minindexb]*(1-newAlpha));
+    pointer[1] = floor(values[minindexf+1]*newAlpha) + floor(values[minindexb+1]*(1-newAlpha));;
+    pointer[2] = floor(values[minindexf+2]*newAlpha) + floor(values[minindexb+2]*(1-newAlpha));;
     pointer[3] = 255;
     tile_release(tile, TRUE);
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
 }
+
 
 static void
 initialize_new_layer (TileManager* source_layer,
@@ -719,7 +843,6 @@ siox_foreground_extract (SioxState          *state,
   guchar      *pointer;
   gpointer     foreach_args[5];
   gint         loaded_tile_x, loaded_tile_y;
-  guchar      *resstr;
   gint         i;
 
   gboolean     found_something, unknown;
@@ -730,7 +853,7 @@ siox_foreground_extract (SioxState          *state,
   
   resulttest = g_malloc (8);
 
-  unknown_hash = g_hash_table_new(g_str_hash, g_str_equal);
+  unknown_hash = g_hash_table_new(g_int64_hash, g_int64_equal);
   
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -786,12 +909,11 @@ siox_foreground_extract (SioxState          *state,
                       pointer[1] = GET_PIXEL (big_cache, x, y, 1);
                       pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
-                      unknown = (GET_PIXEL (big_cache, x, y, 3) == 128); // we do two checks if we have an unknown (also in search_for...)
-
                       if (search_for_neighbours (big_cache, x, y, pointer + 3))
                       {
                         found_something = TRUE;
                       } else {
+                          unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
                           if (unknown)
                           {
                           unknown_pixel = g_malloc (8);
@@ -803,9 +925,11 @@ siox_foreground_extract (SioxState          *state,
                           unknown_pixel[5] = 0;
                           unknown_pixel[6] = 0;
                           unknown_pixel[7] = 0;
-                          resstr = g_malloc (511);
-                          g_sprintf(resstr, "%5d/%5d", (tx*64)+x, (ty*64)+y);
-                          g_hash_table_insert(unknown_hash, resstr, unknown_pixel);
+                          gint64 *addr = g_malloc (1);
+                          gint *temp = addr;
+                          *temp = x;
+                          *(temp+1) = y;
+                          g_hash_table_insert(unknown_hash, addr, unknown_pixel);
                           }
                       }
                     }
@@ -829,7 +953,7 @@ siox_foreground_extract (SioxState          *state,
   loaded_tile_y = -1;
   foreach_args[3] = &loaded_tile_x;
   foreach_args[4] = &loaded_tile_y;
-  
+
   g_hash_table_foreach(unknown_hash, (GHFunc) search_neighborhood, foreach_args);
 
   // TODO do this only once
