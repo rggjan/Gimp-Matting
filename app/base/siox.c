@@ -910,28 +910,30 @@ siox_foreground_extract (SioxState          *state,
                       pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
                       if (search_for_neighbours (big_cache, x, y, pointer + 3))
-                      {
-                        found_something = TRUE;
-                      } else {
+                        {
+                          found_something = TRUE;
+                        }
+                      else
+                        {
                           unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
                           if (unknown)
-                          {
-                          unknown_pixel = g_malloc (8);
-                          unknown_pixel[0] = pointer[0];
-                          unknown_pixel[1] = pointer[1];
-                          unknown_pixel[2] = pointer[2];
-                          unknown_pixel[3] = pointer[3];
-                          unknown_pixel[4] = 0;
-                          unknown_pixel[5] = 0;
-                          unknown_pixel[6] = 0;
-                          unknown_pixel[7] = 0;
-                          gint64 *addr = g_malloc (1);
-                          gint *temp = addr;
-                          *temp = x;
-                          *(temp+1) = y;
-                          g_hash_table_insert(unknown_hash, addr, unknown_pixel);
-                          }
-                      }
+                            {
+                              unknown_pixel = g_malloc (8);
+                              unknown_pixel[0] = pointer[0];
+                              unknown_pixel[1] = pointer[1];
+                              unknown_pixel[2] = pointer[2];
+                              unknown_pixel[3] = pointer[3];
+                              unknown_pixel[4] = 0;
+                              unknown_pixel[5] = 0;
+                              unknown_pixel[6] = 0;
+                              unknown_pixel[7] = 0;
+                              gint64 *addr = g_malloc (1);
+                              gint *temp = addr;
+                              *temp = x;
+                              *(temp + 1) = y;
+                              g_hash_table_insert (unknown_hash, addr, unknown_pixel);
+                            }
+                        }
                     }
                 }
 
@@ -941,10 +943,10 @@ siox_foreground_extract (SioxState          *state,
       tmp = working_layer;
       working_layer = result_layer;
       result_layer = tmp;
-    }  
-  
+    }
+
   update_mask (result_layer, mask);
-  
+
   bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
   foreach_args[0] = bigger_cache;
   foreach_args[1] = working_layer;
@@ -954,10 +956,10 @@ siox_foreground_extract (SioxState          *state,
   foreach_args[3] = &loaded_tile_x;
   foreach_args[4] = &loaded_tile_y;
 
-  g_hash_table_foreach(unknown_hash, (GHFunc) search_neighborhood, foreach_args);
+  g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
 
   // TODO do this only once
-  g_free(big_cache);
+  g_free (big_cache);
 }
 
 /*
