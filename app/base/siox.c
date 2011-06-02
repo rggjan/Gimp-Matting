@@ -472,35 +472,42 @@ search_neighborhood (gpointer key,
 {
     gint pos_x, pos_y;
     gint tx, ty;
-    gint x, y, z0, z1, z2;
+    gint x, y, distance, direction, toggle;
     guchar values[8*4*2]; //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
     guchar prevval[3*4];
     guchar a;
     double angle;
+    
+    // Structure: [fg1, bg1, fg2, bg2, ...]
+    // 1 = right, 2 = up, ...
     gboolean found[8];
+    
     gint permutation[4];
     Tile        *tile;
     guchar      *pointer;
     float       *pointertemp;
 
-    for  (z1 = 0; z1<8; z1++)
+    for  (direction = 0; direction<8; direction++)
     {
-        found[z1] = FALSE;
+        found[direction] = FALSE;
     }
 
     // initialize to original value
-    for (z0 = 0; z0<4; z0++)
+    for (distance = 0; distance<4; distance++)
     {
-        prevval[z0] = value[0];
-        prevval[z0+1] = value[1];
-        prevval[z0+2] = value[2];
+        prevval[distance] = value[0];
+        prevval[distance+1] = value[1];
+        prevval[distance+2] = value[2];
     }
     permutation[0] = 1; permutation[1] = 1; permutation[2] = -1; permutation[3] = -1;
     
 
     //g_printf("key: %d\n", key);
+    
+    // TODO do this with shift, (little endian problems...)
     get_pos_from_key(key, &pos_y, &pos_x); //TODO: x and y swapped here!
     
+    // TODO add pi somehow
     angle = (pos_x % 3) + (pos_y % 3) * 3;
     
     tx = (pos_x - (pos_x % 64))/64;
@@ -519,44 +526,44 @@ search_neighborhood (gpointer key,
     }
 
     guchar r, g, b;
-    for (z0 = 6; z0 < 3*64; z0 += 6)
+    for (distance = 6; distance < 3*64; distance += 6)
     {
-        x = floor(cos(angle) * z0);
-        y = floor(sin(angle) * z0);
-        for (z1=0; z1<4; z1++)
+        x = floor(cos(angle) * distance);
+        y = floor(sin(angle) * distance);
+        for (direction=0; direction<4; direction++)
         {
-            if (found[z1] && found[z1+1])
+            if (found[direction*2] && found[direction*2+1])
             {
                 break;
             }
             else
             {
                 a = GET_PIXEL_BIGGER (((guchar*) args[0]), x, y, 3);
-                r = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 0);
-                g = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 1);
-                b = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[z1]*x + pos_x, permutation[(z1+1) % 4]*y + pos_y, 2);
+                r = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction]*x + pos_x, permutation[(direction+1) % 4]*y + pos_y, 0);
+                g = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction]*x + pos_x, permutation[(direction+1) % 4]*y + pos_y, 1);
+                b = GET_PIXEL_BIGGER (((guchar*) args[0]), permutation[direction]*x + pos_x, permutation[(direction+1) % 4]*y + pos_y, 2);
 
                 // check if it's foreground or background, depending on a
-                for (z2 = 0; z2<2; z2++)
+                for (toggle = 0; toggle<2; toggle++)
                 {
                     // add gradient distance (as float)
-                    if (!found[z1+z2])
+                    if (!found[direction+toggle])
                     {
                         // TODO: Check if values is initialized to zero
-                        pointertemp = &values[z1*16+(z2*8)+4];
-                        *pointertemp += sqrt((prevval[z1] - r)*(prevval[z1] - r)
-                                                          + (prevval[z1+1] - g)*(prevval[z1+1] - g)
-                                                          + (prevval[z1+2] - b)*(prevval[z1+2] - b));
+                        pointertemp = &values[direction*16+(toggle*8)+4];
+                        *pointertemp += sqrt((prevval[direction] - r)*(prevval[direction] - r)
+                                                          + (prevval[direction+1] - g)*(prevval[direction+1] - g)
+                                                          + (prevval[direction+2] - b)*(prevval[direction+2] - b));
                     }
                     
-                    if (a == (z2==1 ? 255 : 0) && !found[z1+z2])
+                    if (a == (toggle==1 ? 255 : 0) && !found[direction+toggle])
                     {
-                        printf("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[z1]*x, permutation[(z1+1) % 4]*y);
-                        values[z1*16+(z2*8)] = r;
-                        values[z1*16+1+(z2*8)] = g;
-                        values[z1*16+2+(z2*8)] = b;
-                        values[z1*16+3+(z2*8)] = z0;
-                        found[z1+z2] = TRUE;
+                        printf("found for pixel pos: %i %i, distance %i %i\n", pos_x, pos_y, permutation[direction]*x, permutation[(direction+1) % 4]*y);
+                        values[direction*16+(toggle*8)] = r;
+                        values[direction*16+1+(toggle*8)] = g;
+                        values[direction*16+2+(toggle*8)] = b;
+                        values[direction*16+3+(toggle*8)] = distance;
+                        found[direction+toggle] = TRUE;
                     }
                 }
             }
@@ -569,24 +576,24 @@ search_neighborhood (gpointer key,
     float temp;
 
     // calculate energy function for every fg/bg pair
-    for (z0=0; z0<4; z0++)
+    for (distance=0; distance<4; distance++)
     {
-        if (found[z0*2])
+        if (found[distance*2])
         {
-            for (z1=0; z1<4; z1++)
+            for (direction=0; direction<4; direction++)
             {
-                if (found[z1*2+1])
+                if (found[direction*2+1])
                 {
-                    temp = objective_function(&values[z0*16],
-                                              &values[z1*16 + 8],
+                    temp = objective_function(&values[distance*16],
+                                              &values[direction*16 + 8],
                                               pos_x,
                                               pos_y,
                                               args[0]);
                     if (temp < min || min < 0)
                     {
                         min = temp;
-                        minindexf = z0;
-                        minindexb = z1;
+                        minindexf = distance;
+                        minindexb = direction;
                     }
                 }
 
@@ -956,6 +963,7 @@ siox_foreground_extract (SioxState          *state,
   foreach_args[3] = &loaded_tile_x;
   foreach_args[4] = &loaded_tile_y;
 
+  // TODO replace foreach
   g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
 
   // TODO do this only once
