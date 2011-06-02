@@ -51,14 +51,16 @@
 #include "tile-manager.h"
 #include "siox.h"
 
+#define IMAGE_DEBUG_PPM
+
+#ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
+#include "stdlib.h"
+#endif
 
 #define SEARCH_RADIUS 10
 
 #define MATTING_SQUARED_COLOR_DISTANCE 25
-
-//#define ONE_TIME_EXPANSION
-
 
 /* Thresholds in the mask:
  *   pixels < SIOX_LOW  are known background
@@ -81,21 +83,21 @@
 #define MULTIBLOB_DEFAULT_SIZEFACTOR 4
 #define MULTIBLOB_ONE_BLOB_ONLY      0
 
-#define BIG_CACHE_CHANNELS 4
-#define BIG_CACHE_W 64*3*BIG_CACHE_CHANNELS
+#define CACHE_CHANNELS 4
+
+#define BIG_CACHE_W 64*3*CACHE_CHANNELS
 #define BIG_CACHE_H 64*3
 #define BIG_CACHE_SIZE BIG_CACHE_W*BIG_CACHE_H
 
 #define GET_PIXEL(big_cache, x, y, color) big_cache[(64+y)*BIG_CACHE_W\
-                                           +(64+x)*BIG_CACHE_CHANNELS+color]
+                                           +(64+x)*CACHE_CHANNELS+color]
 
-#define BIGGER_CACHE_CHANNELS 4
-#define BIGGER_CACHE_W 64*7*BIGGER_CACHE_CHANNELS
+#define BIGGER_CACHE_W 64*7*CACHE_CHANNELS
 #define BIGGER_CACHE_H 64*7
 #define BIGGER_CACHE_SIZE BIGGER_CACHE_W*BIGGER_CACHE_H
 
 #define GET_PIXEL_BIGGER(bigger_cache, x, y, color) bigger_cache[(192+y)*BIGGER_CACHE_W\
-                                           +(192+x)*BIGGER_CACHE_CHANNELS+color]
+                                           +(192+x)*CACHE_CHANNELS+color]
 
 /* #define SIOX_DEBUG  */
 
@@ -152,6 +154,7 @@ siox_progress_update (SioxProgressFunc  progress_callback,
     progress_callback (progress_data, value);
 }
 
+#ifdef IMAGE_DEBUG_PPM
 static void
 debug_image (const char* filename, int dimx, int dimy, guchar *data, int padding, int num_colors)
 {
@@ -172,32 +175,35 @@ debug_image (const char* filename, int dimx, int dimy, guchar *data, int padding
       exit (1);
     }
 
-  guchar* current = data;
+  {
+    guchar* current = data;
 
-  for (j = 0; j < dimy; ++j)
-    {
-      for (i = 0; i < dimx; ++i)
-        {
-          if (num_colors == 3)
-            {
-              static unsigned char color[3];
-              color[0] = current[0];
-              color[1] = current[1];
-              color[2] = current[2];
-              (void) fwrite (color, 1, 3, fp);
-            }
-          else
-            {
-              static unsigned char color;
-              color = current[0];
-              (void) fwrite (&color, 1, 1, fp);
-            }
+    for (j = 0; j < dimy; ++j)
+      {
+        for (i = 0; i < dimx; ++i)
+          {
+            if (num_colors == 3)
+              {
+                static unsigned char color[3];
+                color[0] = current[0];
+                color[1] = current[1];
+                color[2] = current[2];
+                (void) fwrite (color, 1, 3, fp);
+              }
+            else
+              {
+                static unsigned char color;
+                color = current[0];
+                (void) fwrite (&color, 1, 1, fp);
+              }
 
-          current += padding;
-        }
-    }
+            current += padding;
+          }
+      }
+  }
   fclose (fp);
 }
+#endif
 
 /*  assumes that lab starts with an array of floats (l,a,b)  */
 #define CURRENT_VALUE(points, i, dim) (((const gfloat *) (points + i))[dim])
@@ -314,13 +320,15 @@ siox_init (TileManager  *pixels,
 }
 
 static void
-load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int radius)
+load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
+                gint radius)
 {
   gint    xdiff;
   gint    ydiff;
   gint    x, y;
   gint    bx, by;
   gint    width_tile, height_tile;
+  gint   cache_width = (radius*2+1)*64*CACHE_CHANNELS;
   
   Tile   *src_tile;
   guchar *pointer;
@@ -348,10 +356,10 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int ra
                     {
                       bx = (xdiff + radius)*64 + x;
 
-                      big_cache[by * BIG_CACHE_W + bx * 4] = *pointer;
-                      big_cache[by * BIG_CACHE_W + bx * 4 + 1] = *(pointer + 1);
-                      big_cache[by * BIG_CACHE_W + bx * 4 + 2] = *(pointer + 2);
-                      big_cache[by * BIG_CACHE_W + bx * 4 + 3] = *(pointer + 3);
+                      big_cache[by * cache_width + bx * 4] = *pointer;
+                      big_cache[by * cache_width + bx * 4 + 1] = *(pointer + 1);
+                      big_cache[by * cache_width + bx * 4 + 2] = *(pointer + 2);
+                      big_cache[by * cache_width + bx * 4 + 3] = *(pointer + 3);
 
                       pointer += 4;
                     }
@@ -367,10 +375,10 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int ra
                 {
                   bx = (xdiff + radius)*64 + x;
 
-                  big_cache[by * BIG_CACHE_W + bx * 4] = 255;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 2] = 0;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 3] = 128;
+                  big_cache[by * cache_width + bx * 4] = 255;
+                  big_cache[by * cache_width + bx * 4 + 1] = 0;
+                  big_cache[by * cache_width + bx * 4 + 2] = 0;
+                  big_cache[by * cache_width + bx * 4 + 3] = 128;
                 }
             }
           
@@ -381,10 +389,10 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty, int ra
                 {
                   bx = (xdiff + radius)*64 + x;
 
-                  big_cache[by * BIG_CACHE_W + bx * 4] = 255;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 1] = 0;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 2] = 0;
-                  big_cache[by * BIG_CACHE_W + bx * 4 + 3] = 128;
+                  big_cache[by * cache_width + bx * 4] = 255;
+                  big_cache[by * cache_width + bx * 4 + 1] = 0;
+                  big_cache[by * cache_width + bx * 4 + 2] = 0;
+                  big_cache[by * cache_width + bx * 4 + 3] = 128;
                 }
             }
           
@@ -530,7 +538,6 @@ search_neighborhood (gpointer key,
       args[4] = ty;
     }
 
-  guchar r, g, b;
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
       x = floor (cos (angle) * distance);
@@ -543,9 +550,11 @@ search_neighborhood (gpointer key,
             }
           else
             {
+              guchar r, g, b;
+              
               gint xtmp = permutation[direction] * x + pos_x;
               gint ytmp = permutation[(direction + 1) % 4] * y + pos_y;
-              
+
               r = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 0);
               g = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 1);
               b = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 2);
@@ -868,13 +877,14 @@ siox_foreground_extract (SioxState          *state,
   gint         loaded_tile_x, loaded_tile_y;
   gint         i;
 
-  gboolean     found_something, unknown;
+  //gboolean     found_something;
+  gboolean     unknown;
   
   static GHashTable *unknown_hash = NULL;
   guchar      *unknown_pixel;
-  guchar      *resulttest;
+  //guchar      *resulttest;
   
-  resulttest = g_malloc (8);
+  //resulttest = g_malloc (8);
 
   unknown_hash = g_hash_table_new(g_int64_hash, g_int64_equal);
   
@@ -904,15 +914,12 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer(state->pixels, working_layer, mask);
 
-  found_something = TRUE;
+  //found_something = TRUE;
 
   i = 0;
-#ifdef ONE_TIME_EXPANSION
-  while (found_something || i%2 != 1)
-#endif
     {
       TileManager* tmp;
-      found_something = FALSE;
+      //found_something = FALSE;
       i++;
       
       for (tx = 0; tx < tiles_x - 1; tx++)
@@ -941,7 +948,7 @@ siox_foreground_extract (SioxState          *state,
 
                       if (search_for_neighbours (big_cache, x, y, pointer + 3))
                         {
-                          found_something = TRUE;
+                          //found_something = TRUE;
                         }
                       else
                         {
