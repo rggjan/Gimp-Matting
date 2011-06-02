@@ -421,10 +421,10 @@ objective_function (guchar *fg,
                     gint y,
                     guchar *bigger_cache)
 {
-  gint en = 3;
-  gint ea = 2;
+  //gint en = 3;
+  //gint ea = 2;
   gint ef = 1;
-  gint eb = 4;
+  //gint eb = 4;
   gint xi, yi;
   float np, ap, dpb, dpf, *pointer;
   float newAlpha, pfp, r, g, b;
@@ -461,6 +461,8 @@ objective_function (guchar *fg,
   // TODO: check if it should be 1 - newAlpha
   newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
 
+  // TODO uncomment things below... commented them because of compiler errors!
+  
   pointer = &fg[4];
   pfp = *pointer;
   pointer = &bg[4];
@@ -530,13 +532,13 @@ search_neighborhood (gpointer key,
   pos_y = pos_y - 64 * ty;
 
   // TODO: add list of sorted unknown regions to traverse so that same tiles are not loaded several times
-  if (args[3] != tx && args[4] != ty)
+  /*if (args[3] != tx && args[4] != ty)
     {
       load_big_cache ((TileManager*) args[2], (guchar*) args[0], tx, ty, 3);
       g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
       args[3] = tx;
       args[4] = ty;
-    }
+    }*/ // TODO uncomment this!
 
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
@@ -595,53 +597,55 @@ search_neighborhood (gpointer key,
         }
     }
 
-  float min = -1;
-  gint minindexf = -1;
-  gint minindexb = -1;
-  float temp;
+  {
+    float min = -1;
+    gint minindexf = -1;
+    gint minindexb = -1;
+    float temp;
+    float newAlpha;
 
-  // calculate energy function for every fg/bg pair
-  for (distance = 0; distance < 4; distance++)
-    {
-      if (found[distance * 2])
-        {
-          for (direction = 0; direction < 4; direction++)
-            {
-              if (found[direction * 2 + 1])
-                {
-                  temp = objective_function (&values[distance * 16],
-                                             &values[direction * 16 + 8],
-                                             pos_x,
-                                             pos_y,
-                                             args[0]);
-                  if (temp < min || min < 0)
-                    {
-                      min = temp;
-                      minindexf = distance;
-                      minindexb = direction;
-                    }
-                }
+    // calculate energy function for every fg/bg pair
+    for (distance = 0; distance < 4; distance++)
+      {
+        if (found[distance * 2])
+          {
+            for (direction = 0; direction < 4; direction++)
+              {
+                if (found[direction * 2 + 1])
+                  {
+                    temp = objective_function (&values[distance * 16],
+                                               &values[direction * 16 + 8],
+                                               pos_x,
+                                               pos_y,
+                                               args[0]);
+                    if (temp < min || min < 0)
+                      {
+                        min = temp;
+                        minindexf = distance;
+                        minindexb = direction;
+                      }
+                  }
 
-            }
-        }
-    }
-  tile = tile_manager_get_at (args[1], tx, ty, TRUE, TRUE);
-  pointer = tile_data_pointer (tile, pos_x, pos_y);
+              }
+          }
+      }
+    tile = tile_manager_get_at (args[1], tx, ty, TRUE, TRUE);
+    pointer = tile_data_pointer (tile, pos_x, pos_y);
 
+    newAlpha = (values[minindexf] - values[minindexb]) * value[0] + (values[minindexf + 1] - values[minindexb + 1]) * value[1] + (values[minindexf + 2] - values[minindexb + 2]) * value[2];
+    newAlpha = newAlpha / sqrt ((values[minindexf] - values[minindexb])*(values[minindexf] - values[minindexb])+(values[minindexf + 1] - values[minindexb + 1])*(values[minindexf + 1] - values[minindexb + 1])+(values[minindexf + 2] - values[minindexb + 2])*(values[minindexf + 2] - values[minindexb + 2]));
+    // TODO: check if it should be 1 - newAlpha
+    newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
 
-  float newAlpha = (values[minindexf] - values[minindexb]) * value[0] + (values[minindexf + 1] - values[minindexb + 1]) * value[1] + (values[minindexf + 2] - values[minindexb + 2]) * value[2];
-  newAlpha = newAlpha / sqrt ((values[minindexf] - values[minindexb])*(values[minindexf] - values[minindexb])+(values[minindexf + 1] - values[minindexb + 1])*(values[minindexf + 1] - values[minindexb + 1])+(values[minindexf + 2] - values[minindexb + 2])*(values[minindexf + 2] - values[minindexb + 2]));
-  // TODO: check if it should be 1 - newAlpha
-  newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
-
-  // test: do combination of best match
-  // should return a very similar image as before
-  pointer[0] = floor (values[minindexf] * newAlpha) + floor (values[minindexb]*(1 - newAlpha));
-  pointer[1] = floor (values[minindexf + 1] * newAlpha) + floor (values[minindexb + 1]*(1 - newAlpha));
-  pointer[2] = floor (values[minindexf + 2] * newAlpha) + floor (values[minindexb + 2]*(1 - newAlpha));
-  pointer[3] = 255;
-  tile_release (tile, TRUE);
-  //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
+    // test: do combination of best match
+    // should return a very similar image as before
+    pointer[0] = floor (values[minindexf] * newAlpha) + floor (values[minindexb]*(1 - newAlpha));
+    pointer[1] = floor (values[minindexf + 1] * newAlpha) + floor (values[minindexb + 1]*(1 - newAlpha));
+    pointer[2] = floor (values[minindexf + 2] * newAlpha) + floor (values[minindexb + 2]*(1 - newAlpha));
+    pointer[3] = 255;
+    tile_release (tile, TRUE);
+    //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
+  }
 }
 
 
@@ -864,7 +868,7 @@ siox_foreground_extract (SioxState          *state,
                          TileManager        *result_layer,
                          TileManager        *working_layer)
 {
-  gint         width, height;
+  //gint         width, height;
   guchar      *big_cache;
   guchar      *bigger_cache;
   gint         tiles_x, tiles_y;
@@ -897,8 +901,8 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (smoothness >= 0);
   g_return_if_fail (progress_data == NULL || progress_callback != NULL);
 
-  width  = state->width;
-  height = state->height;
+  //width  = state->width;
+  //height = state->height;
 
   g_return_if_fail (TILE_WIDTH == 64 && TILE_HEIGHT == 64);
 
@@ -926,9 +930,10 @@ siox_foreground_extract (SioxState          *state,
         {
           for (ty = 0; ty < tiles_y - 1; ty++)
             {
+              static char buffer[100];
+              
               load_big_cache (working_layer, big_cache, tx, ty, 1);
 
-              static char buffer[100];
               snprintf(buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
               debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
 
@@ -955,6 +960,8 @@ siox_foreground_extract (SioxState          *state,
                           unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
                           if (unknown)
                             {
+                              gint64 *addr;
+                              
                               unknown_pixel = g_malloc (8 * sizeof(guchar));
                               unknown_pixel[0] = pointer[0];
                               unknown_pixel[1] = pointer[1];
@@ -965,7 +972,7 @@ siox_foreground_extract (SioxState          *state,
                               unknown_pixel[6] = 0;
                               unknown_pixel[7] = 0;
                               // TODO: free this memory
-                              gint64 *addr = g_malloc (sizeof(gint64));
+                              addr = g_malloc (sizeof(gint64));
                               *addr = (((gint64)x) << 32) + y;
                               
                               //g_printf("Inserting xy %i, %i\n", x, y);
