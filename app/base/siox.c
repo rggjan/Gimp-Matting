@@ -51,6 +51,7 @@
 #include "tile-manager.h"
 #include "siox.h"
 
+#include "stdio.h"
 
 #define SEARCH_RADIUS 10
 
@@ -149,6 +150,46 @@ siox_progress_update (SioxProgressFunc  progress_callback,
 {
   if (progress_data)
     progress_callback (progress_data, value);
+}
+
+static void debug_image(const char* filename, int dimx, int dimy, guchar *data, int padding, int num_colors)
+{
+  int i, j;
+  FILE *fp = fopen(filename, "wb"); /* b - binary mode */
+
+  if (num_colors == 3) {
+    fprintf(fp, "P6\n%d %d\n255\n", dimx, dimy);
+  } else if (num_colors == 1) {
+    fprintf(fp, "P5\n%d %d\n255\n", dimx, dimy);
+  } else {
+    printf("Problem!\n");
+    exit(1);
+  }
+
+  guchar* current = data;
+
+  for (j = 0; j < dimy; ++j)
+  {
+    for (i = 0; i < dimx; ++i)
+    {
+      if (num_colors == 3) {
+        static unsigned char color[3];
+        color[0] = current[0];
+        color[1] = current[1];
+        color[2] = current[2];
+        (void) fwrite(color, 1, 3, fp);
+      }
+      else 
+      {
+        static unsigned char color;
+        color = current[0];
+        (void) fwrite(&color, 1, 1, fp);
+      }
+      
+      current += padding;
+    }
+  }
+  fclose(fp);
 }
 
 /*  assumes that lab starts with an array of floats (l,a,b)  */
@@ -385,7 +426,7 @@ load_bigger_cache (TileManager *source, guchar *big_cache, gint tx, gint ty)
                 {
                   by = (ydiff + 3)*64 + y;
 
-                  big_cache[by * BIGGER_CACHE_W + bx * 4] = 0;
+                  big_cache[by * BIGGER_CACHE_W + bx * 4] = 255;
                   big_cache[by * BIGGER_CACHE_W + bx * 4 + 1] = 0;
                   big_cache[by * BIGGER_CACHE_W + bx * 4 + 2] = 0;
                   big_cache[by * BIGGER_CACHE_W + bx * 4 + 3] = 128;
@@ -513,7 +554,7 @@ search_neighborhood (gpointer key,
   // TODO do this with shift, (little endian problems...)
   get_pos_from_key (key, &pos_x, &pos_y); //TODO: x and y swapped here!
   
-  g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
+  //g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
 
   // TODO add pi somehow
   angle = (pos_x % 3) + (pos_y % 3) * 3;
@@ -570,7 +611,14 @@ search_neighborhood (gpointer key,
 
                   if (a == (toggle == 0 ? 255 : 0) && !found[direction*2 + toggle])
                     {
-                      printf ("found for pixel pos: %i %i, pixel location %i %i\n", pos_x, pos_y, xtmp, ytmp);
+
+                      if (xtmp > 100 || ytmp > 100)
+                        {
+                          //g_printf ("found for pixel pos: %i %i, pixel location %i %i\n", pos_x, pos_y, xtmp, ytmp);
+
+                          //g_printf ("rgba = %i, %i, %i, %i\n", r, g, b, a);
+                        }
+                      
                       values[direction * 16 + (toggle * 8)] = r;
                       values[direction * 16 + 1 + (toggle * 8)] = g;
                       values[direction * 16 + 2 + (toggle * 8)] = b;
@@ -917,6 +965,11 @@ siox_foreground_extract (SioxState          *state,
             {
               load_big_cache (working_layer, big_cache, tx, ty);
 
+              if (tx == 0 && ty == 0) {
+                debug_image("test.ppm", 64*3, 64*3, big_cache, 4, 3);
+                debug_image("test_alpha.ppm", 64*3, 64*3, big_cache+3, 4, 1);
+              }
+
               tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
               pointer = tile_data_pointer (tile, 0, 0);
 
@@ -950,7 +1003,7 @@ siox_foreground_extract (SioxState          *state,
                               gint64 *addr = g_malloc (sizeof(gint64));
                               *addr = (((gint64)x) << 32) + y;
                               
-                              g_printf("Inserting xy %i, %i\n", x, y);
+                              //g_printf("Inserting xy %i, %i\n", x, y);
                               
                               g_hash_table_insert (unknown_hash, addr, unknown_pixel);
                             }
