@@ -927,10 +927,9 @@ siox_foreground_extract (SioxState          *state,
                               unknown_pixel[5] = 0;
                               unknown_pixel[6] = 0;
                               unknown_pixel[7] = 0;
-                              gint64 *addr = g_malloc (1);
-                              gint *temp = addr;
-                              *temp = x;
-                              *(temp + 1) = y;
+                              // TODO: free this memory
+                              gint64 *addr = g_malloc (8);
+                              *addr = (x << 32) + y;
                               g_hash_table_insert (unknown_hash, addr, unknown_pixel);
                             }
                         }
