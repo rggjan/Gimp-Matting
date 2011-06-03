@@ -399,7 +399,7 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
                 {
                   bx = (xdiff + radius)*64 + x;
 
-                  big_cache[by * cache_width + bx * 4] = 255;
+                  big_cache[by * cache_width + bx * 4] = 0;
                   big_cache[by * cache_width + bx * 4 + 1] = 0;
                   big_cache[by * cache_width + bx * 4 + 2] = 0;
                   big_cache[by * cache_width + bx * 4 + 3] = 128;
@@ -413,7 +413,7 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
                 {
                   bx = (xdiff + radius)*64 + x;
 
-                  big_cache[by * cache_width + bx * 4] = 255;
+                  big_cache[by * cache_width + bx * 4] = 0;
                   big_cache[by * cache_width + bx * 4 + 1] = 0;
                   big_cache[by * cache_width + bx * 4 + 2] = 0;
                   big_cache[by * cache_width + bx * 4 + 3] = 128;
@@ -499,34 +499,46 @@ objective_function (guchar *fg,
 
 // searches for known regions for a given unknown pixel in a hash table
 
+typedef struct {
+  guchar r;
+  guchar g;
+  guchar b;
+  gboolean found;
+} Color;
+
 static void inline
 search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                      guchar* cache, TileManager* layer)
 {
   gint pos_x, pos_y;
-
-  
   gint tx, ty;
-  /*
-  gint x, y, distance, direction, toggle;
-  guchar values[8 * 4 * 2]; //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
-  guchar prevval[3 * 4];
-  guchar a;
+  gint xdiff, ydiff;
+
+  gint direction, toggle, distance;
+
+  //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
+  //guchar values[8 * 4 * 2];
+  Color found[2][4];
+
+  /*guchar prevval[3 * 4];
+  guchar a;*/
   double angle;
+  const gint permutation[4] = {1, 1, -1, -1};
 
-  // Structure: [fg1, bg1, fg2, bg2, ...]
-  // 1 = right, 2 = up, ...
-  gboolean found[8];
-
-  gint permutation[4];
+  /*
   Tile *tile;
   guchar *pointer;
   float *pointertemp;
-
-  for (direction = 0; direction < 8; direction++)
+*/
+  for (toggle = 0; toggle < 2; toggle++)
     {
-      found[direction] = FALSE;
+      for (direction = 0; direction < 4; direction++)
+        {
+          found[toggle][direction].found = FALSE;
+        }
     }
+
+  /*
 
   // initialize to original value*/
   /*
@@ -536,11 +548,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       prevval[distance + 1] = value[1];
       prevval[distance + 2] = value[2];
     }
-  permutation[0] = 1;
-  permutation[1] = 1;
-  permutation[2] = -1;
-  permutation[3] = -1;
-   */
+   *
+   * */
 
   // Load coordinates from entry
   pos_x = entry->this.coords.x;
@@ -548,8 +557,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   //g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
 
-  // TODO add pi somehow
-  //angle = (pos_x % 3) + (pos_y % 3) * 3;
+  // in a 9x9 window, we want to have values in a 90° window
+  // TODO check if this really works!
+  angle = ((pos_x % 3) + (pos_y % 3) * 3)*2.*G_PI/9./4.;
 
   tx = pos_x / 64;
   ty = pos_y / 64;
@@ -576,41 +586,39 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       }
 #endif
     }
-
-  entry->foreground[0] = 255;
-  entry->foreground[1] = 0;
-  entry->foreground[2] = 0;
-  entry->alpha = 128;
   
-  /*
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
-      x = floor (cos (angle) * distance);
-      y = floor (sin (angle) * distance);
+      // TODO precalculate these!
+      xdiff = cos (angle) * distance;
+      ydiff = sin (angle) * distance;
+      
       for (direction = 0; direction < 4; direction++)
         {
-          if (found[direction * 2] && found[direction * 2 + 1])
+          if (found[0][direction].found && found[1][direction].found)
             {
-              break;
+              continue;
             }
           else
             {
-              guchar r, g, b;
-              
-              gint xtmp = permutation[direction] * x + pos_x;
-              gint ytmp = permutation[(direction + 1) % 4] * y + pos_y;
+              guchar r, g, b, a;
 
-              r = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 0);
-              g = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 1);
-              b = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 2);
-              a = GET_PIXEL_BIGGER (((guchar*) args[0]), xtmp, ytmp, 3);
+              gint xtmp = permutation[direction] * xdiff + pos_x;
+              gint ytmp = permutation[(direction + 1) % 4] * ydiff + pos_y;
 
-              // check if it's foreground or background, depending on a
+              r = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 0);
+              g = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 1);
+              b = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 2);
+              a = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 3);
+
+              // check if it's foreground or background, depending on alpha
               // toggle = 0 equals foreground
               for (toggle = 0; toggle < 2; toggle++)
                 {
+
+                  /*
                   // add gradient distance (as float)
-                  if (!found[direction + toggle])
+                  if (!found[direction*2 + toggle])
                     {
                       // TODO: Check if values is initialized to zero
                       pointertemp = &values[direction * 16 + (toggle * 8) + 4];
@@ -618,27 +626,67 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                             + (prevval[direction + 1] - g)*(prevval[direction + 1] - g)
                                             + (prevval[direction + 2] - b)*(prevval[direction + 2] - b));
                     }
-
-                  if (a == (toggle == 0 ? 255 : 0) && !found[direction*2 + toggle])
+*/
+                  if (a == (toggle == 0 ? 255 : 0) &&
+                      !found[toggle][direction].found)
                     {
+                      found[toggle][direction].r = r;
+                      found[toggle][direction].g = g;
+                      found[toggle][direction].b = b;
 
-                      if (xtmp > 100 || ytmp > 100)
-                        {
-                          //g_printf ("found for pixel pos: %i %i, pixel location %i %i\n", pos_x, pos_y, xtmp, ytmp);
+                       //g_printf("rgba, xy: %i, %i, %i, (%i, %i)\n", r, g, b, xtmp, ytmp);
+                       //g_printf("rgba, xy: %i, %i, %i\n", found[toggle][direction].r, found[toggle][direction].g, found[toggle][direction].b);
 
-                          //g_printf ("rgba = %i, %i, %i, %i\n", r, g, b, a);
-                        }
-                      
+                      /*
                       values[direction * 16 + (toggle * 8)] = r;
                       values[direction * 16 + 1 + (toggle * 8)] = g;
                       values[direction * 16 + 2 + (toggle * 8)] = b;
-                      values[direction * 16 + 3 + (toggle * 8)] = distance;
-                      found[direction + toggle] = TRUE;
+                      values[direction * 16 + 3 + (toggle * 8)] = distance;*/
+                      found[toggle][direction].found = TRUE;
                     }
                 }
             }
         }
     }
+
+  {
+    gint counter = 0;
+    gint r = 0;
+    gint g = 0;
+    gint b = 0;
+    
+    entry->alpha = 255;
+
+    g_printf("Colors:\n");
+
+    for (direction = 0; direction < 4; direction++)
+      {
+        if (found[0][direction].found)
+          {
+            counter++;
+            r += found[0][direction].r;
+            g += found[0][direction].g;
+            b += found[0][direction].b;
+          }
+      }
+
+    if (counter > 0)
+      {
+        entry->foreground[0] = r/counter;
+        entry->foreground[1] = g/counter;
+        entry->foreground[2] = b/counter;
+
+        //g_printf("final: %i, %i, %i\n", r/counter, g/counter, b/counter);
+      }
+    else
+      {
+        entry->foreground[0] = 255;
+        entry->foreground[1] = 0;
+        entry->foreground[2] = 0;
+      }
+  }
+
+  /*
 
   {
     float min = -1;
