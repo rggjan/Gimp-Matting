@@ -424,57 +424,85 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
     }
 }
 
-// retrieves the x/y coordinates form a key
+typedef struct {
+  guchar r;
+  guchar g;
+  guchar b;
+  gboolean found;
+} Color;
 
-static inline void
-get_pos_from_key (gint64 *key,
-                  gint *x,
-                  gint *y)
+// Project the Point P onto the line from A-B.
+// alpha_pointer receives the calculated alpha value between 0 and 1
+// where (0=A, 1=B)
+// returns the squared distance of the best projected point to P
+static gfloat projection (Color *A, Color *B, Color *P, float* alpha_pointer)
 {
-  gint64 temp = *key;
-  *x = (temp>>32 & 0xffffffff);
-  *y = temp & 0xffffffff;
+  gfloat ABr = B->r - A->r;
+  gfloat ABg = B->g - A->g;
+  gfloat ABb = B->b - A->b;
+
+  gfloat APr = P->r - A->r;
+  gfloat APg = P->g - A->g;
+  gfloat APb = P->b - A->b;
+
+  gfloat dot_AB = ABr*ABr + ABg*ABg + ABb*ABb;
+  gfloat alpha = (ABr*APr + ABg*APg + ABb*APb) / dot_AB;
+
+  gfloat PPr = P->r - (A->r + alpha*ABr);
+  gfloat PPg = P->g - (A->g + alpha*ABg);
+  gfloat PPb = P->b - (A->b + alpha*ABb);
+
+  *alpha_pointer = (alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha));
+
+  return PPr*PPr + PPg*PPg + PPb*PPb;
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
-
 static float
-objective_function (guchar *fg,
-                    guchar *bg,
+objective_function (Color *fg,
+                    Color *bg,
                     gint x,
                     gint y,
-                    guchar *bigger_cache)
+                    guchar *bigger_cache,
+                    float* best_alpha)
 {
   //gint en = 3;
   //gint ea = 2;
   gint ef = 1;
   //gint eb = 4;
   gint xi, yi;
-  float np, ap, dpb, dpf, *pointer;
+  float Np, ap, dpb, dpf, *pointer;
   float newAlpha, pfp, r, g, b;
 
-  dpb = pow (bg[3], ef);
-  dpf = pow (fg[3], ef);
+  float finalAlpha;
 
-  for (xi = -1; xi < 2; xi++)
+/*  dpb = pow (bg[3], ef);
+  dpf = pow (fg[3], ef);*/
+
+  for (yi = -1; yi < 2; yi++)
     {
-      for (yi = -1; yi < 2; yi++)
+      for (xi = -1; xi < 2; xi++)
         {
+          Color P;
+          P.r = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0);
+          P.g = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1);
+          P.b = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2);
           if (xi != 0 || yi != 0)
             {
-              r = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0);
-              g = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1);
-              b = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2);
-              newAlpha = (fg[0] - bg[0]) * r + (fg[1] - bg[1]) * g + (fg[2] - bg[2]) * b;
-              newAlpha = newAlpha / sqrt ((fg[0] - bg[0])*(fg[0] - bg[0])+(fg[1] - bg[1])*(fg[1] - bg[1])+(fg[2] - bg[2])*(fg[2] - bg[2]));
-              // TODO: check if it should be 1 - newAlpha
-              newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
-              np += (r - newAlpha * fg[0] + (1 - newAlpha) * bg[0])*(r - newAlpha * fg[0] + (1 - newAlpha) * bg[0])
-                      + (g - newAlpha * fg[1] + (1 - newAlpha) * bg[1])*(g - newAlpha * fg[0] + (1 - newAlpha) * bg[1])
-                      + (b - newAlpha * fg[2] + (1 - newAlpha) * bg[2])*(b - newAlpha * fg[0] + (1 - newAlpha) * bg[2]);
+              float dummy;
+              Np += projection (fg, bg, &P, &dummy);
+            }
+          else
+            {
+              Np += projection (fg, bg, &P, &finalAlpha);
             }
         }
     }
+
+  *best_alpha = finalAlpha;
+  return Np;
+
+  /*
 
   // TODO: this calculation will happen twice (also when storing the final value)
   r = GET_PIXEL_BIGGER (bigger_cache, x, y, 0);
@@ -494,17 +522,11 @@ objective_function (guchar *fg,
   // TODO: should newAlpha be 1 or 255 here?
   ap = pfp + (1 - 2 * pfp) * newAlpha;
 
-  return np + ap + dpb + dpf;
+  return Np + ap + dpb + dpf;*/
 }
 
 // searches for known regions for a given unknown pixel in a hash table
 
-typedef struct {
-  guchar r;
-  guchar g;
-  guchar b;
-  gboolean found;
-} Color;
 
 static void inline
 search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
@@ -655,93 +677,66 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
     }
 
   {
-    gint counter = 0;
-    gint r = 0;
-    gint g = 0;
-    gint b = 0;
-    
-    entry->alpha = 255;
-
-    g_printf("Colors:\n");
-
-    for (direction = 0; direction < 4; direction++)
-      {
-        if (found[0][direction].found)
-          {
-            counter++;
-            r += found[0][direction].r;
-            g += found[0][direction].g;
-            b += found[0][direction].b;
-          }
-      }
-
-    if (counter > 0)
-      {
-        entry->foreground[0] = r/counter;
-        entry->foreground[1] = g/counter;
-        entry->foreground[2] = b/counter;
-
-        //g_printf("final: %i, %i, %i\n", r/counter, g/counter, b/counter);
-      }
-    else
-      {
-        entry->foreground[0] = 255;
-        entry->foreground[1] = 0;
-        entry->foreground[2] = 0;
-      }
-  }
-
-  /*
-
-  {
-    float min = -1;
+    gfloat min = -1;
     gint minindexf = -1;
     gint minindexb = -1;
-    float temp;
-    float newAlpha;
+
+    gint foreground_direction, background_direction;
+    
+    gfloat best_alpha = -1;
 
     // calculate energy function for every fg/bg pair
-    for (distance = 0; distance < 4; distance++)
+    for (foreground_direction = 0; foreground_direction < 4; foreground_direction++)
       {
-        if (found[distance * 2])
+        if (found[0][foreground_direction].found)
           {
-            for (direction = 0; direction < 4; direction++)
+            for (background_direction = 0; background_direction < 4; background_direction++)
               {
-                if (found[direction * 2 + 1])
+                if (found[1][background_direction].found)
                   {
-                    temp = objective_function (&values[distance * 16],
-                                               &values[direction * 16 + 8],
-                                               pos_x,
-                                               pos_y,
-                                               args[0]);
+                    float current_alpha;
+
+                    gfloat temp = objective_function (&(found[0][foreground_direction]),
+                                                      &(found[1][background_direction]),
+                                                      pos_x,
+                                                      pos_y,
+                                                      cache,
+                                                      &current_alpha);
                     if (temp < min || min < 0)
                       {
+                        best_alpha = current_alpha;
                         min = temp;
-                        minindexf = distance;
-                        minindexb = direction;
+                        minindexf = foreground_direction;
+                        minindexb = background_direction;
                       }
                   }
 
               }
           }
       }
-    tile = tile_manager_get_at (args[1], tx, ty, TRUE, TRUE);
-    pointer = tile_data_pointer (tile, pos_x, pos_y);
 
-    newAlpha = (values[minindexf] - values[minindexb]) * value[0] + (values[minindexf + 1] - values[minindexb + 1]) * value[1] + (values[minindexf + 2] - values[minindexb + 2]) * value[2];
-    newAlpha = newAlpha / sqrt ((values[minindexf] - values[minindexb])*(values[minindexf] - values[minindexb])+(values[minindexf + 1] - values[minindexb + 1])*(values[minindexf + 1] - values[minindexb + 1])+(values[minindexf + 2] - values[minindexb + 2])*(values[minindexf + 2] - values[minindexb + 2]));
-    // TODO: check if it should be 1 - newAlpha
-    newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
+    if (minindexf == -1 || minindexb == -1 || best_alpha == -1)
+      {
+        entry->foreground[0] = 255;
+        entry->foreground[1] = 0;
+        entry->foreground[2] = 0;
+        entry->alpha = 255;
+      }
+    else
+      {
+        // test: do combination of best match
+        // should return a very similar image as before
+        entry->foreground[0] = (1 - best_alpha) * found[0][minindexf].r +
+                best_alpha * found[1][minindexb].r;
+        entry->foreground[1] = (1 - best_alpha) * found[0][minindexf].g +
+                best_alpha * found[1][minindexb].g;
+        entry->foreground[2] = (1 - best_alpha) * found[0][minindexf].b +
+                best_alpha * found[1][minindexb].b;
+        entry->alpha = 255;
+      }
 
-    // test: do combination of best match
-    // should return a very similar image as before
-    pointer[0] = floor (values[minindexf] * newAlpha) + floor (values[minindexb]*(1 - newAlpha));
-    pointer[1] = floor (values[minindexf + 1] * newAlpha) + floor (values[minindexb + 1]*(1 - newAlpha));
-    pointer[2] = floor (values[minindexf + 2] * newAlpha) + floor (values[minindexb + 2]*(1 - newAlpha));
-    pointer[3] = 255;
-    tile_release (tile, TRUE);
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
-  }*/
+  }
 }
 
 
