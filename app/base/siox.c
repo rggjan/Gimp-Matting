@@ -51,7 +51,7 @@
 #include "tile-manager.h"
 #include "siox.h"
 
-#define IMAGE_DEBUG_PPM
+//#define IMAGE_DEBUG_PPM
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -546,7 +546,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   pos_x = entry->this.coords.x;
   pos_y = entry->this.coords.y;
 
-  g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
+  //g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
 
   // TODO add pi somehow
   //angle = (pos_x % 3) + (pos_y % 3) * 3;
@@ -576,6 +576,12 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       }
 #endif
     }
+
+  entry->foreground[0] = 255;
+  entry->foreground[1] = 0;
+  entry->foreground[2] = 0;
+  entry->alpha = 128;
+  
   /*
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
@@ -1037,6 +1043,7 @@ siox_foreground_extract (SioxState          *state,
   return;
 #endif
 
+  // Phase 2, loop over values in hash and fill them in
   {
     HashEntry *current = first_entry;
     gint current_tx = -1;
@@ -1051,6 +1058,44 @@ siox_foreground_extract (SioxState          *state,
       }
   }
 
+  // Last phase, fill values from hash back into result layer
+  for (ty = 0; ty < tiles_y; ty++)
+    {
+      for (tx = 0; tx < tiles_x; tx++)
+        {
+          guint height_tile;
+          guint width_tile;
+
+          tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+          pointer = tile_data_pointer (tile, 0, 0);
+
+          width_tile = tile_ewidth (tile);
+          height_tile = tile_eheight (tile);
+
+          for (y = 0; y < height_tile; y++)
+            {
+              for (x = 0; x < width_tile; x++, pointer += 4)
+                {
+                  HashEntry *current;
+                  HashAddress address;
+                  address.coords.x = tx*64+x;
+                  address.coords.y = ty*64+y;
+
+                  current = g_hash_table_lookup (unknown_hash, &address);
+
+                  if (current != NULL)
+                    {
+                      g_printf("Current != NULL xy: %i, %i\n", x, y);
+                      pointer[0] = 0;
+                      pointer[1] = 255;
+                      pointer[2] = 0;
+                      pointer[3] = 255;
+                    }
+                }
+            }
+        }
+    }
+
   /*
   foreach_args[0] = bigger_cache;
   foreach_args[1] = working_layer;
@@ -1062,7 +1107,7 @@ siox_foreground_extract (SioxState          *state,
 
   // TODO replace foreach
   g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
-*/
+   */
 
   // TODO do this only once
   g_free (big_cache);
