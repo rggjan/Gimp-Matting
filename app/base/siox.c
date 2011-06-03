@@ -879,7 +879,6 @@ siox_foreground_extract (SioxState          *state,
   guchar      *pointer;
   gpointer     foreach_args[5];
   gint         loaded_tile_x, loaded_tile_y;
-  gint         i;
 
   gboolean     unknown;
   
@@ -917,71 +916,64 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer (state->pixels, working_layer, mask);
 
-  i = 0;
-  {
-    TileManager* tmp;
-    i++;
+  for (ty = 0; ty < tiles_y - 1; ty++)
+    {
+      for (tx = 0; tx < tiles_x - 1; tx++)
+        {
+          static char buffer[100];
 
-    for (tx = 0; tx < tiles_x - 1; tx++)
-      {
-        for (ty = 0; ty < tiles_y - 1; ty++)
-          {
-            static char buffer[100];
+          load_big_cache (working_layer, big_cache, tx, ty, 1);
 
-            load_big_cache (working_layer, big_cache, tx, ty, 1);
+#ifdef IMAGE_DEBUG_PPM
+          snprintf (buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
+          debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
 
-            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
-            debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
+          snprintf (buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
+          debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
+#endif
 
-            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
-            debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
+          tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+          pointer = tile_data_pointer (tile, 0, 0);
 
-            tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-            pointer = tile_data_pointer (tile, 0, 0);
+          for (y = 0; y < 64; y++)
+            {
+              for (x = 0; x < 64; x++, pointer += 4)
+                {
+                  pointer[0] = GET_PIXEL (big_cache, x, y, 0);
+                  pointer[1] = GET_PIXEL (big_cache, x, y, 1);
+                  pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
-            for (x = 0; x < 64; x++)
-              {
-                for (y = 0; y < 64; y++, pointer += 4)
-                  {
-                    pointer[0] = GET_PIXEL (big_cache, x, y, 0);
-                    pointer[1] = GET_PIXEL (big_cache, x, y, 1);
-                    pointer[2] = GET_PIXEL (big_cache, x, y, 2);
+                  search_for_neighbours (big_cache, x, y, pointer + 3);
 
-                    search_for_neighbours (big_cache, x, y, pointer + 3);
+                  unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
 
-                    unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
-                    
-                    if (unknown)
-                      {
-                        gint64 *addr;
+                  if (unknown)
+                    {
+                      gint64 *addr;
 
-                        unknown_pixel = g_malloc (8 * sizeof (guchar));
-                        unknown_pixel[0] = pointer[0];
-                        unknown_pixel[1] = pointer[1];
-                        unknown_pixel[2] = pointer[2];
-                        unknown_pixel[3] = pointer[3];
-                        unknown_pixel[4] = 0;
-                        unknown_pixel[5] = 0;
-                        unknown_pixel[6] = 0;
-                        unknown_pixel[7] = 0;
-                        // TODO: free this memory
-                        addr = g_malloc (sizeof (gint64));
-                        *addr = (((gint64) x) << 32) + y;
+                      unknown_pixel = g_malloc (8 * sizeof (guchar));
+                      unknown_pixel[0] = pointer[0];
+                      unknown_pixel[1] = pointer[1];
+                      unknown_pixel[2] = pointer[2];
+                      unknown_pixel[3] = pointer[3];
+                      unknown_pixel[4] = 0;
+                      unknown_pixel[5] = 0;
+                      unknown_pixel[6] = 0;
+                      unknown_pixel[7] = 0;
+                      // TODO: free this memory
+                      addr = g_malloc (sizeof (gint64));
+                      *addr = (((gint64) x) << 32) + y;
 
-                        //g_printf("Inserting xy %i, %i\n", x, y);
+                      //g_printf("Inserting xy %i, %i\n", x, y);
 
-                        g_hash_table_insert (unknown_hash, addr, unknown_pixel);
-                      }
-                  }
-              }
+                      g_hash_table_insert (unknown_hash, addr, unknown_pixel);
+                    }
+                }
+            }
 
-            tile_release (tile, TRUE);
-          }
-      }
-    tmp = working_layer;
-    working_layer = result_layer;
-    result_layer = tmp;
-  }
+          tile_release (tile, TRUE);
+        }
+    }
 
 #ifdef DEBUG_EXTENSION
   update_mask (result_layer, mask);
