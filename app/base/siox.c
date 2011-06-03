@@ -539,6 +539,29 @@ objective_function (Color *fg,
 // searches for known regions for a given unknown pixel in a hash table
 
 
+static gfloat calculate_variance (Color* P, gint x, gint y, guchar* bigger_cache)
+{
+  gint yi;
+  gint xi;
+
+  gfloat sum = 0;
+
+  for (yi = -2; yi <= 2; yi++)
+    {
+      for (xi = -2; xi <= 2; xi++)
+        {
+          // TODO check borders
+          gfloat diffr = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0) - P->r;
+          gfloat diffg = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1) - P->g;
+          gfloat diffb = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2) - P->b;
+
+          sum += diffr*diffr + diffg*diffg + diffb*diffb;
+        }
+    }
+
+  return sum / 25;
+}
+
 static void inline
 search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                      guchar* cache, TileManager* layer)
@@ -720,18 +743,24 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
     if (minindexf != -1 && minindexb != -1 && best_alpha != -1)
       {
+        Color best_foreground = found[0][minindexf];
+        Color best_background = found[1][minindexb];
+
         // test: do combination of best match
         // should return a very similar image as before
-        entry->foreground[0] = found[0][minindexf].r;
-        entry->foreground[1] = found[0][minindexf].g;
-        entry->foreground[2] = found[0][minindexf].b;
+        entry->foreground[0] = best_foreground.r;
+        entry->foreground[1] = best_foreground.g;
+        entry->foreground[2] = best_foreground.b;
 
-        entry->background[0] = found[1][minindexb].r;
-        entry->background[1] = found[1][minindexb].g;
-        entry->background[2] = found[1][minindexb].b;
+        entry->background[0] = best_background.r;
+        entry->background[1] = best_background.g;
+        entry->background[2] = best_background.b;
 
         entry->alpha = (1-best_alpha)*255;
         entry->pair_found = TRUE;
+
+        entry->sigma_b_squared = calculate_variance (&best_background, pos_x, pos_y, cache);
+        entry->sigma_f_squared = calculate_variance (&best_foreground, pos_x, pos_y, cache);
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
