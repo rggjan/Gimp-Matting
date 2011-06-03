@@ -58,7 +58,7 @@
 #include "stdlib.h"
 #endif
 
-#define DEBUG_EXTENSION
+//#define DEBUG_EXTENSION
 
 #define SEARCH_RADIUS 10
 #define MATTING_SQUARED_COLOR_DISTANCE 25
@@ -829,6 +829,29 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   *result = 128;
 }
 
+typedef union
+{
+  guint64 value;
+
+  struct
+  {
+    guint32 x;
+    guint32 y;
+  } coords;
+} HashAddress;
+
+struct HashEntry_
+{
+  guchar foreground[3];
+  guchar background[3];
+  guchar alpha;
+  HashAddress this;
+  HashAddress next;
+};
+
+typedef struct HashEntry_ HashEntry;
+
+#define HASH_ADDRESS(x, y) ((((gint64) x) << 32) + y)
 
 /**
  * siox_foreground_extract:
@@ -881,8 +904,12 @@ siox_foreground_extract (SioxState          *state,
   gint         loaded_tile_x, loaded_tile_y;
 
   gboolean     unknown;
-  
-  static GHashTable *unknown_hash = NULL;
+
+
+  HashEntry   *first_entry = NULL;
+  HashEntry   *previous_entry = NULL;
+
+  static       GHashTable *unknown_hash = NULL;
   guchar      *unknown_pixel;
   //guchar      *resulttest;
   
@@ -915,13 +942,13 @@ siox_foreground_extract (SioxState          *state,
   //tiles_y = state->pixels->ntile_rows;
 
   initialize_new_layer (state->pixels, working_layer, mask);
-
+  
   for (ty = 0; ty < tiles_y; ty++)
     {
       for (tx = 0; tx < tiles_x; tx++)
         {
-          guint height_tile;
-          guint width_tile;
+          guint   height_tile;
+          guint   width_tile;
           
           load_big_cache (working_layer, big_cache, tx, ty, 1);
 
@@ -957,24 +984,28 @@ siox_foreground_extract (SioxState          *state,
 
                   if (unknown)
                     {
-                      gint64 *addr;
-
-                      unknown_pixel = g_malloc (8 * sizeof (guchar));
-                      unknown_pixel[0] = pointer[0];
-                      unknown_pixel[1] = pointer[1];
-                      unknown_pixel[2] = pointer[2];
-                      unknown_pixel[3] = pointer[3];
-                      unknown_pixel[4] = 0;
-                      unknown_pixel[5] = 0;
-                      unknown_pixel[6] = 0;
-                      unknown_pixel[7] = 0;
+                      HashEntry *entry = g_slice_new (HashEntry);
                       // TODO: free this memory
-                      addr = g_malloc (sizeof (gint64));
-                      *addr = (((gint64) x) << 32) + y;
 
-                      //g_printf("Inserting xy %i, %i\n", x, y);
+                      entry->foreground[0] = pointer[0];
+                      entry->foreground[1] = pointer[1];
+                      entry->foreground[2] = pointer[2];
+                      
+                      entry->background[0] = pointer[0];
+                      entry->background[1] = pointer[1];
+                      entry->background[2] = pointer[2];
+                      
+                      entry->alpha = 128;
+                      entry->this.coords.x = tx*64+x;
+                      entry->this.coords.y = ty*64+y;
+                      
+                      if (previous_entry != NULL)
+                        previous_entry->next = entry->this;
+                      
+                      if(first_entry == NULL)
+                        first_entry = entry;
 
-                      g_hash_table_insert (unknown_hash, addr, unknown_pixel);
+                      g_hash_table_insert (unknown_hash, entry, &(entry->this));
                     }
                 }
             }
@@ -982,12 +1013,16 @@ siox_foreground_extract (SioxState          *state,
           tile_release (tile, TRUE);
         }
     }
+ 
+  // End the list with a null pointer
+  previous_entry->next.value = 0;
 
 #ifdef DEBUG_EXTENSION
   update_mask (result_layer, mask);
   return;
 #endif
 
+  /*
   bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
   foreach_args[0] = bigger_cache;
   foreach_args[1] = working_layer;
@@ -999,7 +1034,8 @@ siox_foreground_extract (SioxState          *state,
 
   // TODO replace foreach
   g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
-
+*/
+  
   // TODO do this only once
   g_free (big_cache);
 }
