@@ -564,7 +564,7 @@ static gfloat calculate_variance (Color* P, gint x, gint y, guchar* bigger_cache
 
 static void inline
 search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
-                     guchar* cache, TileManager* layer)
+                     guchar* bigger_cache, TileManager* layer)
 {
   gint pos_x, pos_y;
   gint tx, ty;
@@ -625,7 +625,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   if (*current_tx != tx || *current_ty != ty)
     {
-      load_big_cache (layer, cache, tx, ty, 3);
+      load_big_cache (layer, bigger_cache, tx, ty, 3);
       g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
       *current_tx = tx;
       *current_ty = ty;
@@ -635,10 +635,10 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         static char buffer[100];
 
         snprintf (buffer, 100, "bigger_cache_tx_%i_ty_%i.ppm", tx, ty);
-        debug_image (buffer, 64 * 7, 64 * 7, cache, 4, 3);
+        debug_image (buffer, 64 * 7, 64 * 7, bigger_cache, 4, 3);
 
         snprintf (buffer, 100, "bigger_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
-        debug_image (buffer, 64 * 7, 64 * 7, cache + 3, 4, 1);
+        debug_image (buffer, 64 * 7, 64 * 7, bigger_cache + 3, 4, 1);
       }
 #endif
     }
@@ -667,10 +667,10 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
               gint xtmp = permutation[direction] + pos_x;
               gint ytmp = permutation[(direction + 1) % 4] + pos_y;
 
-              r = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 0);
-              g = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 1);
-              b = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 2);
-              a = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 3);
+              r = GET_PIXEL_BIGGER (bigger_cache, xtmp, ytmp, 0);
+              g = GET_PIXEL_BIGGER (bigger_cache, xtmp, ytmp, 1);
+              b = GET_PIXEL_BIGGER (bigger_cache, xtmp, ytmp, 2);
+              a = GET_PIXEL_BIGGER (bigger_cache, xtmp, ytmp, 3);
 
               // check if it's foreground or background, depending on alpha
               // toggle = 0 equals foreground
@@ -726,7 +726,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                                       &(found[1][background_direction]),
                                                       pos_x,
                                                       pos_y,
-                                                      cache,
+                                                      bigger_cache,
                                                       &current_alpha);
                     if (temp < min || min < 0)
                       {
@@ -759,8 +759,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->alpha = (1-best_alpha)*255;
         entry->pair_found = TRUE;
 
-        entry->sigma_b_squared = calculate_variance (&best_background, pos_x, pos_y, cache);
-        entry->sigma_f_squared = calculate_variance (&best_foreground, pos_x, pos_y, cache);
+        entry->sigma_b_squared = calculate_variance (&best_background, pos_x, pos_y, bigger_cache);
+        entry->sigma_f_squared = calculate_variance (&best_foreground, pos_x, pos_y, bigger_cache);
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
