@@ -429,6 +429,8 @@ typedef struct {
   guchar g;
   guchar b;
   gboolean found;
+  gint distance;
+  gfloat gradient;
 } Color;
 
 // Project the Point P onto the line from A-B.
@@ -468,21 +470,21 @@ objective_function (Color *fg,
 {
   //gint en = 3;
   //gint ea = 2;
-  gint ef = 1;
   //gint eb = 4;
   gint xi, yi;
-  float Np, ap, dpb, dpf, *pointer;
+  float ap, *pointer;
   float newAlpha, pfp, r, g, b;
+  
+  float Np = 0;
 
   float finalAlpha;
-
-/*  dpb = pow (bg[3], ef);
-  dpf = pow (fg[3], ef);*/
 
   for (yi = -1; yi < 2; yi++)
     {
       for (xi = -1; xi < 2; xi++)
         {
+          // TODO check borders
+          
           Color P;
           P.r = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0);
           P.g = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1);
@@ -499,8 +501,13 @@ objective_function (Color *fg,
         }
     }
 
+  // Can change for other ef!
+  //gint ef = 1;
+  //dpb = pow (bg->distance, ef);
+  //dpf = pow (fg->distance, ef);
+
   *best_alpha = finalAlpha;
-  return Np;
+  return Np * bg->distance * fg->distance;
 
   /*
 
@@ -660,15 +667,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                       found[toggle][direction].r = r;
                       found[toggle][direction].g = g;
                       found[toggle][direction].b = b;
-
-                       //g_printf("rgba, xy: %i, %i, %i, (%i, %i)\n", r, g, b, xtmp, ytmp);
-                       //g_printf("rgba, xy: %i, %i, %i\n", found[toggle][direction].r, found[toggle][direction].g, found[toggle][direction].b);
-
-                      /*
-                      values[direction * 16 + (toggle * 8)] = r;
-                      values[direction * 16 + 1 + (toggle * 8)] = g;
-                      values[direction * 16 + 2 + (toggle * 8)] = b;
-                      values[direction * 16 + 3 + (toggle * 8)] = distance;*/
+                      found[toggle][direction].distance = distance;
                       found[toggle][direction].found = TRUE;
                     }
                 }
