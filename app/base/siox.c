@@ -117,6 +117,10 @@ struct HashEntry_
   guchar foreground[3];
   guchar background[3];
   guchar alpha;
+  gfloat sigma_f_squared;
+  gfloat sigma_b_squared;
+  
+  gboolean pair_found;
   HashAddress this;
   HashAddress next;
 };
@@ -714,14 +718,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
           }
       }
 
-    if (minindexf == -1 || minindexb == -1 || best_alpha == -1)
-      {
-        entry->foreground[0] = 255;
-        entry->foreground[1] = 0;
-        entry->foreground[2] = 0;
-        entry->alpha = 255;
-      }
-    else
+    if (minindexf != -1 && minindexb != -1 && best_alpha != -1)
       {
         // test: do combination of best match
         // should return a very similar image as before
@@ -734,6 +731,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->background[2] = found[1][minindexb].b;
 
         entry->alpha = (1-best_alpha)*255;
+        entry->pair_found = TRUE;
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
@@ -1056,15 +1054,11 @@ siox_foreground_extract (SioxState          *state,
                       HashEntry *entry = g_slice_new (HashEntry);
                       // TODO: free this memory
 
-                      entry->foreground[0] = pointer[0];
-                      entry->foreground[1] = pointer[1];
-                      entry->foreground[2] = pointer[2];
-
-                      entry->background[0] = pointer[0];
-                      entry->background[1] = pointer[1];
-                      entry->background[2] = pointer[2];
-
-                      entry->alpha = 128;
+                      entry->foreground[0] = 255;
+                      entry->foreground[1] = 0;
+                      entry->foreground[2] = 0;
+                      entry->alpha = 255;
+                      entry->pair_found = FALSE;
                       entry->this.coords.x = tx*64+x;
                       entry->this.coords.y = ty*64+y;
 
