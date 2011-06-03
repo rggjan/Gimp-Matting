@@ -1052,7 +1052,7 @@ siox_foreground_extract (SioxState          *state,
     while (current != NULL && current->next.value != 0)
       {
         search_neighborhood (current, &current_tx, &current_ty,
-                     bigger_cache, result_layer);
+                             bigger_cache, result_layer);
 
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
@@ -1085,11 +1085,10 @@ siox_foreground_extract (SioxState          *state,
 
                   if (current != NULL)
                     {
-                      g_printf("Current != NULL xy: %i, %i\n", x, y);
-                      pointer[0] = 0;
-                      pointer[1] = 255;
-                      pointer[2] = 0;
-                      pointer[3] = 255;
+                      pointer[0] = current->foreground[0];
+                      pointer[1] = current->foreground[1];
+                      pointer[2] = current->foreground[2];
+                      pointer[3] = current->alpha;
                     }
                 }
             }
