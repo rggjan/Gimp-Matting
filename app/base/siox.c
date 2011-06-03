@@ -500,10 +500,14 @@ objective_function (guchar *fg,
 // searches for known regions for a given unknown pixel in a hash table
 
 static void inline
-search_neighborhood (HashEntry* entry)
+search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
+                     guchar* cache, TileManager* layer)
 {
   gint pos_x, pos_y;
+
+  
   gint tx, ty;
+  /*
   gint x, y, distance, direction, toggle;
   guchar values[8 * 4 * 2]; //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
   guchar prevval[3 * 4];
@@ -524,7 +528,7 @@ search_neighborhood (HashEntry* entry)
       found[direction] = FALSE;
     }
 
-  // initialize to original value
+  // initialize to original value*/
   /*
   for (distance = 0; distance < 4; distance++)
     {
@@ -543,26 +547,36 @@ search_neighborhood (HashEntry* entry)
   pos_y = entry->this.coords.y;
 
   g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
-  return;
 
   // TODO add pi somehow
-  angle = (pos_x % 3) + (pos_y % 3) * 3;
+  //angle = (pos_x % 3) + (pos_y % 3) * 3;
 
-  tx = (pos_x - (pos_x % 64)) / 64;
-  ty = (pos_y - (pos_y % 64)) / 64;
+  tx = pos_x / 64;
+  ty = pos_y / 64;
 
   pos_x = pos_x - 64 * tx;
   pos_y = pos_y - 64 * ty;
 
-  // TODO: add list of sorted unknown regions to traverse so that same tiles are not loaded several times
-  /*if (args[3] != tx && args[4] != ty)
+  if (*current_tx != tx || *current_ty != ty)
     {
-      load_big_cache ((TileManager*) args[2], (guchar*) args[0], tx, ty, 3);
+      load_big_cache (layer, cache, tx, ty, 3);
       g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
-      args[3] = tx;
-      args[4] = ty;
-    }*/ // TODO uncomment this!
-/*
+      *current_tx = tx;
+      *current_ty = ty;
+
+#ifdef IMAGE_DEBUG_PPM
+      {
+        static char buffer[100];
+
+        snprintf (buffer, 100, "bigger_cache_tx_%i_ty_%i.ppm", tx, ty);
+        debug_image (buffer, 64 * 7, 64 * 7, cache, 4, 3);
+
+        snprintf (buffer, 100, "bigger_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
+        debug_image (buffer, 64 * 7, 64 * 7, cache + 3, 4, 1);
+      }
+#endif
+    }
+  /*
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
       x = floor (cos (angle) * distance);
@@ -934,6 +948,7 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (tile_manager_bpp (result_layer) == 4);
 
   big_cache = g_malloc (BIG_CACHE_SIZE);
+  bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
 
   tiles_x = tile_manager_tiles_per_col (state->pixels);
   tiles_y = tile_manager_tiles_per_row (state->pixels);
@@ -1024,17 +1039,19 @@ siox_foreground_extract (SioxState          *state,
 
   {
     HashEntry *current = first_entry;
+    gint current_tx = -1;
+    gint current_ty = -1;
 
     while (current != NULL && current->next.value != 0)
       {
-        search_neighborhood (current);
+        search_neighborhood (current, &current_tx, &current_ty,
+                     bigger_cache, result_layer);
 
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
   }
 
   /*
-  bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
   foreach_args[0] = bigger_cache;
   foreach_args[1] = working_layer;
   foreach_args[2] = result_layer;
@@ -1049,6 +1066,7 @@ siox_foreground_extract (SioxState          *state,
 
   // TODO do this only once
   g_free (big_cache);
+  g_free (bigger_cache);
 }
 
 /*
