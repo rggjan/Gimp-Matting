@@ -942,7 +942,7 @@ siox_foreground_extract (SioxState          *state,
   //tiles_y = state->pixels->ntile_rows;
 
   initialize_new_layer (state->pixels, working_layer, mask);
-  
+
   for (ty = 0; ty < tiles_y; ty++)
     {
       for (tx = 0; tx < tiles_x; tx++)
@@ -990,18 +990,19 @@ siox_foreground_extract (SioxState          *state,
                       entry->foreground[0] = pointer[0];
                       entry->foreground[1] = pointer[1];
                       entry->foreground[2] = pointer[2];
-                      
+
                       entry->background[0] = pointer[0];
                       entry->background[1] = pointer[1];
                       entry->background[2] = pointer[2];
-                      
+
                       entry->alpha = 128;
                       entry->this.coords.x = tx*64+x;
                       entry->this.coords.y = ty*64+y;
-                      
+
                       if (previous_entry != NULL)
                         previous_entry->next = entry->this;
-                      
+                      previous_entry = entry;
+
                       if(first_entry == NULL)
                         first_entry = entry;
 
@@ -1013,7 +1014,7 @@ siox_foreground_extract (SioxState          *state,
           tile_release (tile, TRUE);
         }
     }
- 
+
   // End the list with a null pointer
   previous_entry->next.value = 0;
 
@@ -1035,7 +1036,7 @@ siox_foreground_extract (SioxState          *state,
   // TODO replace foreach
   g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
 */
-  
+
   // TODO do this only once
   g_free (big_cache);
 }
