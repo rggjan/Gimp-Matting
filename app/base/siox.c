@@ -100,6 +100,29 @@
 #define GET_PIXEL_BIGGER(bigger_cache, x, y, color) bigger_cache[(192+y)*BIGGER_CACHE_W\
                                            +(192+x)*CACHE_CHANNELS+color]
 
+
+typedef union
+{
+  guint64 value;
+
+  struct
+  {
+    guint32 x;
+    guint32 y;
+  } coords;
+} HashAddress;
+
+struct HashEntry_
+{
+  guchar foreground[3];
+  guchar background[3];
+  guchar alpha;
+  HashAddress this;
+  HashAddress next;
+};
+
+typedef struct HashEntry_ HashEntry;
+
 /* #define SIOX_DEBUG  */
 
 typedef struct
@@ -476,10 +499,8 @@ objective_function (guchar *fg,
 
 // searches for known regions for a given unknown pixel in a hash table
 
-static void
-search_neighborhood (gpointer key,
-                     guchar *value,
-                     gpointer *args)
+static void inline
+search_neighborhood (HashEntry* entry)
 {
   gint pos_x, pos_y;
   gint tx, ty;
@@ -504,6 +525,7 @@ search_neighborhood (gpointer key,
     }
 
   // initialize to original value
+  /*
   for (distance = 0; distance < 4; distance++)
     {
       prevval[distance] = value[0];
@@ -514,14 +536,14 @@ search_neighborhood (gpointer key,
   permutation[1] = 1;
   permutation[2] = -1;
   permutation[3] = -1;
+   */
 
+  // Load coordinates from entry
+  pos_x = entry->this.coords.x;
+  pos_y = entry->this.coords.y;
 
-  //g_printf("key: %d\n", key);
-
-  // TODO do this with shift, (little endian problems...)
-  get_pos_from_key (key, &pos_x, &pos_y); //TODO: x and y swapped here!
-  
-  //g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
+  g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
+  return;
 
   // TODO add pi somehow
   angle = (pos_x % 3) + (pos_y % 3) * 3;
@@ -540,7 +562,7 @@ search_neighborhood (gpointer key,
       args[3] = tx;
       args[4] = ty;
     }*/ // TODO uncomment this!
-
+/*
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
       x = floor (cos (angle) * distance);
@@ -646,7 +668,7 @@ search_neighborhood (gpointer key,
     pointer[3] = 255;
     tile_release (tile, TRUE);
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
-  }
+  }*/
 }
 
 
@@ -829,29 +851,6 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   *result = 128;
 }
 
-typedef union
-{
-  guint64 value;
-
-  struct
-  {
-    guint32 x;
-    guint32 y;
-  } coords;
-} HashAddress;
-
-struct HashEntry_
-{
-  guchar foreground[3];
-  guchar background[3];
-  guchar alpha;
-  HashAddress this;
-  HashAddress next;
-};
-
-typedef struct HashEntry_ HashEntry;
-
-#define HASH_ADDRESS(x, y) ((((gint64) x) << 32) + y)
 
 /**
  * siox_foreground_extract:
@@ -1006,7 +1005,7 @@ siox_foreground_extract (SioxState          *state,
                       if(first_entry == NULL)
                         first_entry = entry;
 
-                      g_hash_table_insert (unknown_hash, entry, &(entry->this));
+                      g_hash_table_insert (unknown_hash, &(entry->this), entry);
                     }
                 }
             }
@@ -1022,6 +1021,17 @@ siox_foreground_extract (SioxState          *state,
   update_mask (result_layer, mask);
   return;
 #endif
+
+  {
+    HashEntry *current = first_entry;
+
+    while (current != NULL && current->next.value != 0)
+      {
+        search_neighborhood (current);
+
+        current = g_hash_table_lookup (unknown_hash, &(current->next));
+      }
+  }
 
   /*
   bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
