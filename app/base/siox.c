@@ -114,9 +114,17 @@ typedef union
 
 struct HashEntry_
 {
+  guchar color[3];
+
   guchar foreground[3];
   guchar background[3];
+
+  guchar foreground_refined[3];
+  guchar background_refined[3];
+
   guchar alpha;
+  guchar alpha_refined;
+
   gfloat sigma_f_squared;
   gfloat sigma_b_squared;
   
@@ -428,45 +436,45 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
     }
 }
 
+// TODO only use rgb in certain places
 typedef struct {
-  guchar r;
-  guchar g;
-  guchar b;
+  guchar color[3];
   gboolean found;
   gint distance;
   gfloat gradient;
-} Color;
+} SearchStructure;
 
 // Project the Point P onto the line from A-B.
 // alpha_pointer receives the calculated alpha value between 0 and 1
 // where (0=A, 1=B)
 // returns the squared distance of the best projected point to P
-static gfloat projection (Color *A, Color *B, Color *P, float* alpha_pointer)
+static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_pointer)
 {
-  gfloat ABr = B->r - A->r;
-  gfloat ABg = B->g - A->g;
-  gfloat ABb = B->b - A->b;
+  gfloat ABx = B[0] - A[0];
+  gfloat ABy = B[1] - A[1];
+  gfloat ABz = B[2] - A[2];
 
-  gfloat APr = P->r - A->r;
-  gfloat APg = P->g - A->g;
-  gfloat APb = P->b - A->b;
+  gfloat APx = P[0] - A[0];
+  gfloat APy = P[1] - A[1];
+  gfloat APz = P[2] - A[2];
 
-  gfloat dot_AB = ABr*ABr + ABg*ABg + ABb*ABb;
-  gfloat alpha = (ABr*APr + ABg*APg + ABb*APb) / dot_AB;
+  gfloat dot_AB = ABx*ABx + ABy*ABy + ABz*ABz;
+  gfloat alpha = (ABx*APx + ABy*APy + ABz*APz) / dot_AB;
 
-  gfloat PPr = P->r - (A->r + alpha*ABr);
-  gfloat PPg = P->g - (A->g + alpha*ABg);
-  gfloat PPb = P->b - (A->b + alpha*ABb);
+  gfloat PPx = P[0] - (A[0] + alpha*ABx);
+  gfloat PPy = P[1] - (A[1] + alpha*ABy);
+  gfloat PPz = P[2] - (A[2] + alpha*ABz);
 
-  *alpha_pointer = (alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha));
+  if (alpha_pointer)
+    *alpha_pointer = (alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha));
 
-  return PPr*PPr + PPg*PPg + PPb*PPb;
+  return PPx*PPx + PPy*PPy + PPz*PPz;
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
 static float
-objective_function (Color *fg,
-                    Color *bg,
+objective_function (SearchStructure *fg,
+                    SearchStructure *bg,
                     gint x,
                     gint y,
                     guchar *bigger_cache,
@@ -476,8 +484,8 @@ objective_function (Color *fg,
   //gint ea = 2;
   //gint eb = 4;
   gint xi, yi;
-  float ap, *pointer;
-  float newAlpha, pfp, r, g, b;
+//  float ap, *pointer;
+//  float newAlpha, pfp, r, g, b;
   
   float Np = 0;
 
@@ -488,19 +496,18 @@ objective_function (Color *fg,
       for (xi = -1; xi < 2; xi++)
         {
           // TODO check borders
-          
-          Color P;
-          P.r = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0);
-          P.g = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1);
-          P.b = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2);
+          guchar P[3];
+
+          P[0] = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0);
+          P[1] = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1);
+          P[2] = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2);
           if (xi != 0 || yi != 0)
             {
-              float dummy;
-              Np += projection (fg, bg, &P, &dummy);
+              Np += projection (fg->color, bg->color, P, NULL);
             }
           else
             {
-              Np += projection (fg, bg, &P, &finalAlpha);
+              Np += projection (fg->color, bg->color, P, &finalAlpha);
             }
         }
     }
@@ -539,7 +546,7 @@ objective_function (Color *fg,
 // searches for known regions for a given unknown pixel in a hash table
 
 
-static gfloat calculate_variance (Color* P, gint x, gint y, guchar* bigger_cache)
+static gfloat calculate_variance (guchar P[3], gint x, gint y, guchar* bigger_cache)
 {
   gint yi;
   gint xi;
@@ -551,15 +558,68 @@ static gfloat calculate_variance (Color* P, gint x, gint y, guchar* bigger_cache
       for (xi = -2; xi <= 2; xi++)
         {
           // TODO check borders
-          gfloat diffr = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0) - P->r;
-          gfloat diffg = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1) - P->g;
-          gfloat diffb = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2) - P->b;
+          gfloat diffr = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 0) - P[0];
+          gfloat diffg = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1) - P[1];
+          gfloat diffb = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2) - P[2];
 
           sum += diffr*diffr + diffg*diffg + diffb*diffb;
         }
     }
 
   return sum / 25;
+}
+
+static void inline
+compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
+{
+  gint i;
+  gint x = entry->this.coords.x;
+  gint y = entry->this.coords.y;
+
+  gint xdiff, ydiff;
+  gfloat min = -1;
+  HashEntry *current;
+
+  for (ydiff = -14; ydiff <= 14; ydiff++)
+    {
+      for (xdiff = -14; xdiff <= 14; xdiff++)
+        {
+          HashAddress address;
+
+          address.coords.x = x + xdiff;
+          address.coords.y = y + ydiff;
+
+          current = g_hash_table_lookup (unknown_hash, &address);
+          if (current && current->pair_found)
+            {
+              gfloat current_alpha;
+              gfloat temp = projection (current->foreground,
+                                        current->background,
+                                        entry->color,
+                                        &current_alpha);
+              
+              if (temp < min || min < 0)
+                {
+                  min = temp;
+                  for (i = 0; i < 3; i++)
+                    {
+                      entry->foreground_refined[i] = current->foreground[i];
+                      entry->background_refined[i] = current->background[i];
+
+                    }
+                  entry->alpha_refined = current_alpha;
+                }
+            }
+        }
+    }
+
+  if (min == -1)
+    {
+      entry->foreground_refined[0] = 255;
+      entry->foreground_refined[1] = 0;
+      entry->foreground_refined[2] = 0;
+      entry->alpha_refined = 255;
+    }
 }
 
 static void inline
@@ -574,7 +634,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
   //guchar values[8 * 4 * 2];
-  Color found[2][4];
+  SearchStructure found[2][4];
 
   /*guchar prevval[3 * 4];
   guchar a;*/
@@ -611,12 +671,6 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   pos_x = entry->this.coords.x;
   pos_y = entry->this.coords.y;
 
-  //g_printf("key: x = %i, y = %i\n", pos_x, pos_y);
-
-  // in a 9x9 window, we want to have values in a 90° window
-  // TODO check if this really works!
-  angle = ((pos_x % 3) + (pos_y % 3) * 3)*2.*G_PI/9./4.;
-
   tx = pos_x / 64;
   ty = pos_y / 64;
 
@@ -626,7 +680,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   if (*current_tx != tx || *current_ty != ty)
     {
       load_big_cache (layer, bigger_cache, tx, ty, 3);
-      g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
+      //g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
       *current_tx = tx;
       *current_ty = ty;
 
@@ -642,6 +696,11 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       }
 #endif
     }
+
+
+  // in a 9x9 window, we want to have values in a 90° window
+  // TODO check if this really works!
+  angle = ((pos_x % 3) + (pos_y % 3) * 3)*2.*G_PI/9./4.;
   
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
@@ -691,9 +750,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
                     {
-                      found[toggle][direction].r = r;
-                      found[toggle][direction].g = g;
-                      found[toggle][direction].b = b;
+                      found[toggle][direction].color[0] = r;
+                      found[toggle][direction].color[1] = g;
+                      found[toggle][direction].color[2] = b;
                       found[toggle][direction].distance = distance;
                       found[toggle][direction].found = TRUE;
                     }
@@ -743,24 +802,24 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
     if (minindexf != -1 && minindexb != -1 && best_alpha != -1)
       {
-        Color best_foreground = found[0][minindexf];
-        Color best_background = found[1][minindexb];
+        SearchStructure best_foreground = found[0][minindexf];
+        SearchStructure best_background = found[1][minindexb];
 
         // test: do combination of best match
         // should return a very similar image as before
-        entry->foreground[0] = best_foreground.r;
-        entry->foreground[1] = best_foreground.g;
-        entry->foreground[2] = best_foreground.b;
+        entry->foreground[0] = best_foreground.color[0];
+        entry->foreground[1] = best_foreground.color[1];
+        entry->foreground[2] = best_foreground.color[2];
 
-        entry->background[0] = best_background.r;
-        entry->background[1] = best_background.g;
-        entry->background[2] = best_background.b;
+        entry->background[0] = best_background.color[0];
+        entry->background[1] = best_background.color[1];
+        entry->background[2] = best_background.color[2];
 
         entry->alpha = (1-best_alpha)*255;
         entry->pair_found = TRUE;
 
-        entry->sigma_b_squared = calculate_variance (&best_background, pos_x, pos_y, bigger_cache);
-        entry->sigma_f_squared = calculate_variance (&best_foreground, pos_x, pos_y, bigger_cache);
+        entry->sigma_b_squared = calculate_variance (best_background.color, pos_x, pos_y, bigger_cache);
+        entry->sigma_f_squared = calculate_variance (best_foreground.color, pos_x, pos_y, bigger_cache);
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
@@ -995,8 +1054,8 @@ siox_foreground_extract (SioxState          *state,
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-  gpointer     foreach_args[5];
-  gint         loaded_tile_x, loaded_tile_y;
+  //gpointer     foreach_args[5];
+  //gint         loaded_tile_x, loaded_tile_y;
 
   gboolean     unknown;
 
@@ -1005,7 +1064,7 @@ siox_foreground_extract (SioxState          *state,
   HashEntry   *previous_entry = NULL;
 
   static       GHashTable *unknown_hash = NULL;
-  guchar      *unknown_pixel;
+  //guchar      *unknown_pixel;
   //guchar      *resulttest;
   
   //resulttest = g_malloc (8);
@@ -1091,6 +1150,12 @@ siox_foreground_extract (SioxState          *state,
                       entry->this.coords.x = tx*64+x;
                       entry->this.coords.y = ty*64+y;
 
+                      // TODO maybe look this up in image, instead of
+                      // saving it redundantly in cache
+                      entry->color[0] = pointer[0];
+                      entry->color[1] = pointer[1];
+                      entry->color[2] = pointer[2];
+
                       if (previous_entry != NULL)
                         previous_entry->next = entry->this;
                       previous_entry = entry;
@@ -1129,6 +1194,18 @@ siox_foreground_extract (SioxState          *state,
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
   }
+
+  // Phase 3, get better values from neighbours
+  /*{
+    HashEntry *current = first_entry;
+
+    while (current != NULL && current->next.value != 0)
+      {
+        compare_neighborhood (current, unknown_hash);
+
+        current = g_hash_table_lookup (unknown_hash, &(current->next));
+      }
+  }*/
 
   // Last phase, fill values from hash back into result layer
   for (ty = 0; ty < tiles_y; ty++)
