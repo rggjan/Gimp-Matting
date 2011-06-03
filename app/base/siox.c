@@ -580,9 +580,11 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
   gfloat min = -1;
   HashEntry *current;
 
-  for (ydiff = -14; ydiff <= 14; ydiff++)
+  const gint radius = 2;
+
+  for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
-      for (xdiff = -14; xdiff <= 14; xdiff++)
+      for (xdiff = -radius; xdiff <= radius; xdiff++)
         {
           HashAddress address;
 
@@ -607,7 +609,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
                       entry->background_refined[i] = current->background[i];
 
                     }
-                  entry->alpha_refined = current_alpha;
+                  entry->alpha_refined = (1-current_alpha)*255;
                 }
             }
         }
@@ -1196,7 +1198,7 @@ siox_foreground_extract (SioxState          *state,
   }
 
   // Phase 3, get better values from neighbours
-  /*{
+  {
     HashEntry *current = first_entry;
 
     while (current != NULL && current->next.value != 0)
@@ -1205,7 +1207,7 @@ siox_foreground_extract (SioxState          *state,
 
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
-  }*/
+  }
 
   // Last phase, fill values from hash back into result layer
   for (ty = 0; ty < tiles_y; ty++)
@@ -1234,10 +1236,10 @@ siox_foreground_extract (SioxState          *state,
 
                   if (current != NULL)
                     {
-                      pointer[0] = current->foreground[0];
-                      pointer[1] = current->foreground[1];
-                      pointer[2] = current->foreground[2];
-                      pointer[3] = current->alpha;
+                      pointer[0] = current->foreground_refined[0];
+                      pointer[1] = current->foreground_refined[1];
+                      pointer[2] = current->foreground_refined[2];
+                      pointer[3] = current->alpha_refined;
                     }
                 }
             }
