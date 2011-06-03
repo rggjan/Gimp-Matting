@@ -1202,13 +1202,22 @@ siox_foreground_extract (SioxState          *state,
 
   // Phase 3, get better values from neighbours
   {
+    gint counter = 0;
+    gint total = g_hash_table_size (unknown_hash);
+
     HashEntry *current = first_entry;
 
     while (current != NULL && current->next.value != 0)
       {
         compare_neighborhood (current, unknown_hash);
 
+        if ((counter & 0xff) == 0)
+          siox_progress_update (progress_callback, progress_data,
+                                ((float) counter) / total);
+
+
         current = g_hash_table_lookup (unknown_hash, &(current->next));
+        counter++;
       }
   }
 
