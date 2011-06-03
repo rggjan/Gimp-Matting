@@ -916,28 +916,36 @@ siox_foreground_extract (SioxState          *state,
 
   initialize_new_layer (state->pixels, working_layer, mask);
 
-  for (ty = 0; ty < tiles_y - 1; ty++)
+  for (ty = 0; ty < tiles_y; ty++)
     {
-      for (tx = 0; tx < tiles_x - 1; tx++)
+      for (tx = 0; tx < tiles_x; tx++)
         {
-          static char buffer[100];
-
+          guint height_tile;
+          guint width_tile;
+          
           load_big_cache (working_layer, big_cache, tx, ty, 1);
 
 #ifdef IMAGE_DEBUG_PPM
-          snprintf (buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
-          debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
+          {
+            static char buffer[100];
 
-          snprintf (buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
-          debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
+            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
+            debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
+
+            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
+            debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
+          }
 #endif
 
           tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
           pointer = tile_data_pointer (tile, 0, 0);
 
-          for (y = 0; y < 64; y++)
+          width_tile = tile_ewidth (tile);
+          height_tile = tile_eheight (tile);
+          
+          for (y = 0; y < height_tile; y++)
             {
-              for (x = 0; x < 64; x++, pointer += 4)
+              for (x = 0; x < width_tile; x++, pointer += 4)
                 {
                   pointer[0] = GET_PIXEL (big_cache, x, y, 0);
                   pointer[1] = GET_PIXEL (big_cache, x, y, 1);
