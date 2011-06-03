@@ -523,7 +523,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   /*guchar prevval[3 * 4];
   guchar a;*/
   double angle;
-  const gint permutation[4] = {1, 1, -1, -1};
+  gint permutation[4];
 
   /*
   Tile *tile;
@@ -592,6 +592,11 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       // TODO precalculate these!
       xdiff = cos (angle) * distance;
       ydiff = sin (angle) * distance;
+
+      permutation[0] = xdiff;
+      permutation[1] = ydiff;
+      permutation[2] = -xdiff;
+      permutation[3] = -ydiff;
       
       for (direction = 0; direction < 4; direction++)
         {
@@ -603,8 +608,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
             {
               guchar r, g, b, a;
 
-              gint xtmp = permutation[direction] * xdiff + pos_x;
-              gint ytmp = permutation[(direction + 1) % 4] * ydiff + pos_y;
+              gint xtmp = permutation[direction] + pos_x;
+              gint ytmp = permutation[(direction + 1) % 4] + pos_y;
 
               r = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 0);
               g = GET_PIXEL_BIGGER (cache, xtmp, ytmp, 1);
