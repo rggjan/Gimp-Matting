@@ -580,7 +580,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
   gfloat min = -1;
   HashEntry *current;
 
-  const gint radius = 2;
+  const gint radius = 14;
 
   for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
@@ -1047,11 +1047,14 @@ siox_foreground_extract (SioxState          *state,
                          TileManager        *result_layer,
                          TileManager        *working_layer)
 {
+  static int i=0;
+  if (i++ == 0)
+    return;
+
   //gint         width, height;
   guchar      *big_cache;
   guchar      *bigger_cache;
   gint         tiles_x, tiles_y;
-
   Tile        *tile;
 
   gint         tx, ty, x, y;
