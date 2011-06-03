@@ -726,13 +726,15 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       {
         // test: do combination of best match
         // should return a very similar image as before
-        entry->foreground[0] = (1 - best_alpha) * found[0][minindexf].r +
-                best_alpha * found[1][minindexb].r;
-        entry->foreground[1] = (1 - best_alpha) * found[0][minindexf].g +
-                best_alpha * found[1][minindexb].g;
-        entry->foreground[2] = (1 - best_alpha) * found[0][minindexf].b +
-                best_alpha * found[1][minindexb].b;
-        entry->alpha = 255;
+        entry->foreground[0] = found[0][minindexf].r;
+        entry->foreground[1] = found[0][minindexf].g;
+        entry->foreground[2] = found[0][minindexf].b;
+
+        entry->background[0] = found[1][minindexb].r;
+        entry->background[1] = found[1][minindexb].g;
+        entry->background[2] = found[1][minindexb].b;
+
+        entry->alpha = (1-best_alpha)*255;
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
