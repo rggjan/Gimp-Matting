@@ -58,8 +58,9 @@
 #include "stdlib.h"
 #endif
 
-#define SEARCH_RADIUS 10
+#define DEBUG_EXTENSION
 
+#define SEARCH_RADIUS 10
 #define MATTING_SQUARED_COLOR_DISTANCE 25
 
 /* Thresholds in the mask:
@@ -785,7 +786,7 @@ check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* res
   return FALSE;
 }
 
-static inline gboolean
+static inline void
 search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
 {
   guchar color[3];
@@ -799,7 +800,7 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
   if (alpha != 128)
     {
       *result = alpha;
-      return FALSE;
+      return;
     }
 
   for (i = 0; i < 3; i++)
@@ -812,21 +813,20 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
       for (n = -radius; n < radius; n++)
         {
           if (check_closeness (color, big_cache, x+radius, y+n, result))
-            return TRUE;
+            return;
 
           if (check_closeness (color, big_cache, x-radius, y+n, result))
-            return TRUE;
+            return;
 
           if (check_closeness (color, big_cache, x+n, y+radius, result))
-            return TRUE;
+            return;
 
           if (check_closeness (color, big_cache, x+n, y-radius, result))
-            return TRUE;
+            return;
         }
     }
 
   *result = 128;
-  return FALSE;
 }
 
 
@@ -881,7 +881,6 @@ siox_foreground_extract (SioxState          *state,
   gint         loaded_tile_x, loaded_tile_y;
   gint         i;
 
-  //gboolean     found_something;
   gboolean     unknown;
   
   static GHashTable *unknown_hash = NULL;
@@ -916,82 +915,78 @@ siox_foreground_extract (SioxState          *state,
   //tiles_x = state->pixels->ntile_cols;
   //tiles_y = state->pixels->ntile_rows;
 
-  initialize_new_layer(state->pixels, working_layer, mask);
-
-  //found_something = TRUE;
+  initialize_new_layer (state->pixels, working_layer, mask);
 
   i = 0;
-    {
-      TileManager* tmp;
-      //found_something = FALSE;
-      i++;
-      
-      for (tx = 0; tx < tiles_x - 1; tx++)
-        {
-          for (ty = 0; ty < tiles_y - 1; ty++)
-            {
-              static char buffer[100];
-              
-              load_big_cache (working_layer, big_cache, tx, ty, 1);
+  {
+    TileManager* tmp;
+    i++;
 
-              snprintf(buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
-              debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
+    for (tx = 0; tx < tiles_x - 1; tx++)
+      {
+        for (ty = 0; ty < tiles_y - 1; ty++)
+          {
+            static char buffer[100];
 
-              snprintf(buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
-              debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
+            load_big_cache (working_layer, big_cache, tx, ty, 1);
 
-              tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-              pointer = tile_data_pointer (tile, 0, 0);
+            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i.ppm", tx, ty);
+            debug_image (buffer, 64 * 3, 64 * 3, big_cache, 4, 3);
 
-              for (x = 0; x < 64; x++)
-                {
-                  for (y = 0; y < 64; y++, pointer += 4)
-                    {
-                      pointer[0] = GET_PIXEL (big_cache, x, y, 0);
-                      pointer[1] = GET_PIXEL (big_cache, x, y, 1);
-                      pointer[2] = GET_PIXEL (big_cache, x, y, 2);
+            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i_alpha.ppm", tx, ty);
+            debug_image (buffer, 64 * 3, 64 * 3, big_cache + 3, 4, 1);
 
-                      if (search_for_neighbours (big_cache, x, y, pointer + 3))
-                        {
-                          //found_something = TRUE;
-                        }
-                      else
-                        {
-                          unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
-                          if (unknown)
-                            {
-                              gint64 *addr;
-                              
-                              unknown_pixel = g_malloc (8 * sizeof(guchar));
-                              unknown_pixel[0] = pointer[0];
-                              unknown_pixel[1] = pointer[1];
-                              unknown_pixel[2] = pointer[2];
-                              unknown_pixel[3] = pointer[3];
-                              unknown_pixel[4] = 0;
-                              unknown_pixel[5] = 0;
-                              unknown_pixel[6] = 0;
-                              unknown_pixel[7] = 0;
-                              // TODO: free this memory
-                              addr = g_malloc (sizeof(gint64));
-                              *addr = (((gint64)x) << 32) + y;
-                              
-                              //g_printf("Inserting xy %i, %i\n", x, y);
-                              
-                              g_hash_table_insert (unknown_hash, addr, unknown_pixel);
-                            }
-                        }
-                    }
-                }
+            tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+            pointer = tile_data_pointer (tile, 0, 0);
 
-              tile_release (tile, TRUE);
-            }
-        }
-      tmp = working_layer;
-      working_layer = result_layer;
-      result_layer = tmp;
-    }
+            for (x = 0; x < 64; x++)
+              {
+                for (y = 0; y < 64; y++, pointer += 4)
+                  {
+                    pointer[0] = GET_PIXEL (big_cache, x, y, 0);
+                    pointer[1] = GET_PIXEL (big_cache, x, y, 1);
+                    pointer[2] = GET_PIXEL (big_cache, x, y, 2);
 
+                    search_for_neighbours (big_cache, x, y, pointer + 3);
+
+                    unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
+                    
+                    if (unknown)
+                      {
+                        gint64 *addr;
+
+                        unknown_pixel = g_malloc (8 * sizeof (guchar));
+                        unknown_pixel[0] = pointer[0];
+                        unknown_pixel[1] = pointer[1];
+                        unknown_pixel[2] = pointer[2];
+                        unknown_pixel[3] = pointer[3];
+                        unknown_pixel[4] = 0;
+                        unknown_pixel[5] = 0;
+                        unknown_pixel[6] = 0;
+                        unknown_pixel[7] = 0;
+                        // TODO: free this memory
+                        addr = g_malloc (sizeof (gint64));
+                        *addr = (((gint64) x) << 32) + y;
+
+                        //g_printf("Inserting xy %i, %i\n", x, y);
+
+                        g_hash_table_insert (unknown_hash, addr, unknown_pixel);
+                      }
+                  }
+              }
+
+            tile_release (tile, TRUE);
+          }
+      }
+    tmp = working_layer;
+    working_layer = result_layer;
+    result_layer = tmp;
+  }
+
+#ifdef DEBUG_EXTENSION
   update_mask (result_layer, mask);
+  return;
+#endif
 
   bigger_cache = g_malloc (BIGGER_CACHE_SIZE);
   foreach_args[0] = bigger_cache;
