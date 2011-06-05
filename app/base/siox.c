@@ -85,20 +85,10 @@
 #define MULTIBLOB_DEFAULT_SIZEFACTOR 4
 #define MULTIBLOB_ONE_BLOB_ONLY      0
 
-#define BIG_CACHE_CHANNELS 4
-#define BIG_CACHE_RADIUS 3
-#define BIG_CACHE_SIZE ((BIG_CACHE_RADIUS*2+1)*64)
-#define GET_PIXEL(big_cache, x, y, color) (big_cache[BIG_CACHE_RADIUS*64+y][BIG_CACHE_RADIUS*64+x][color])
-typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
-
-#define HASH_CACHE_RADIUS 1
-#define HASH_CACHE_SIZE ((HASH_CACHE_RADIUS*2+1)*64)
-typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 
 typedef union
 {
   guint64 value;
-
   struct
   {
     guint32 x;
@@ -128,6 +118,17 @@ struct HashEntry_
 };
 
 typedef struct HashEntry_ HashEntry;
+
+#define BIG_CACHE_CHANNELS 4
+#define BIG_CACHE_RADIUS 3
+#define BIG_CACHE_SIZE ((BIG_CACHE_RADIUS*2+1)*64)
+#define GET_PIXEL(big_cache, x, y, color) (big_cache[BIG_CACHE_RADIUS*64+y][BIG_CACHE_RADIUS*64+x][color])
+typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
+
+#define HASH_CACHE_EXTRA 14
+#define HASH_CACHE_SIZE (64+HASH_CACHE_EXTRA*2)
+#define GET_ENTRY(hash_cache, x, y) (hash_cache[HASH_CACHE_EXTRA+y][HASH_CACHE_EXTRA+x])
+typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 
 /* #define SIOX_DEBUG  */
 
@@ -544,8 +545,6 @@ objective_function (SearchStructure *fg,
   pfp = bg->gradient / (fg->gradient + bg->gradient);
   ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
 
-
-
   *best_alpha = finalAlpha;
   return Np * bg->distance * fg->distance * ap * ap;
 
@@ -595,37 +594,71 @@ typedef struct
   gfloat diff;
 } TopColor;
 
-static void inline
-compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_cache)
+static void load_hash_cache (GHashTable* unknown_hash, HashCache hash_cache,
+                             gint tx, gint ty)
 {
-  gint i;
-  gint x = entry->this.coords.x;
-  gint y = entry->this.coords.y;
+
+  gint x, y;
+  gint xoff = tx * 64;
+  gint yoff = ty * 64;
+
+  for (y = -HASH_CACHE_EXTRA; y < HASH_CACHE_EXTRA + 64; y++)
+    {
+      for (x = -HASH_CACHE_EXTRA; x < HASH_CACHE_EXTRA + 64; x++)
+        {
+          HashAddress address;
+          address.coords.x = x + xoff;
+          address.coords.y = y + yoff;
+
+          GET_ENTRY(hash_cache, x, y) = g_hash_table_lookup (unknown_hash, &address);
+        }
+    }
+}
+
+static void inline
+compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
+                      HashCache hash_cache, GHashTable* unknown_hash,
+                      BigCache big_cache)
+{
+  gint pos_x, pos_y;
+  gint tx, ty;
 
   gint xdiff, ydiff;
   gint num;
   gfloat min = -1;
+
   HashEntry *current;
+  TopColor top3[3];  
 
-  const gint radius = 14;
+  // Load coordinates from entry
+  pos_x = entry->this.coords.x;
+  pos_y = entry->this.coords.y;
 
-  TopColor top3[3];
+  tx = pos_x / 64;
+  ty = pos_y / 64;
+
+  pos_x = pos_x - 64 * tx;
+  pos_y = pos_y - 64 * ty;
+
+  if (*current_tx != tx || *current_ty != ty)
+    {
+      load_hash_cache (unknown_hash, hash_cache, tx, ty);
+
+      *current_tx = tx;
+      *current_ty = ty;
+    }
 
   for (num = 0; num < 3; num++)
     {
       top3[num].diff = -1;
     }
 
-  for (ydiff = -radius; ydiff <= radius; ydiff++)
+  for (ydiff = -HASH_CACHE_EXTRA; ydiff <= HASH_CACHE_EXTRA; ydiff++)
     {
-      for (xdiff = -radius; xdiff <= radius; xdiff++)
+      for (xdiff = -HASH_CACHE_EXTRA; xdiff <= HASH_CACHE_EXTRA; xdiff++)
         {
-          HashAddress address;
+          current = GET_ENTRY(hash_cache, pos_x + xdiff, pos_y + ydiff);
 
-          address.coords.x = x + xdiff;
-          address.coords.y = y + ydiff;
-
-          current = g_hash_table_lookup (unknown_hash, &address);
           if (current && current->pair_found)
             {
               gfloat current_alpha;
@@ -638,12 +671,12 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_c
 
               if (temp < min || min < 0)
                 {
+                  gint i;
                   min = temp;
                   for (i = 0; i < 3; i++)
                     {
                       entry->foreground_refined[i] = current->foreground[i];
                       entry->background_refined[i] = current->background[i];
-
                     }
                   entry->alpha_refined = (1 - current_alpha) * 255;
                 }
@@ -1326,22 +1359,17 @@ siox_foreground_extract (SioxState          *state,
 
   // Phase 3, get better values from neighbours
   {
-    gint counter = 0;
-    gint total = g_hash_table_size (unknown_hash);
-
     HashEntry *current = first_entry;
+    HashCache hash_cache;
+    gint current_tx = -1;
+    gint current_ty = -1;
 
     while (current != NULL && current->next.value != 0)
       {
-        compare_neighborhood (current, unknown_hash, big_cache);
-
-        if ((counter & 0xff) == 0)
-          siox_progress_update (progress_callback, progress_data,
-                                ((float) counter) / total);
-
+        compare_neighborhood (current, &current_tx, &current_ty,
+                              hash_cache, unknown_hash, big_cache);
 
         current = g_hash_table_lookup (unknown_hash, &(current->next));
-        counter++;
       }
   }
 
