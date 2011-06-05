@@ -506,9 +506,6 @@ objective_function (SearchStructure *fg,
                     BigCache big_cache,
                     float* best_alpha)
 {
-  //gint en = 3;
-  //gint ea = 2;
-  //gint eb = 4;
   gint xi, yi;
   float ap, pfp;
 
@@ -537,28 +534,13 @@ objective_function (SearchStructure *fg,
         }
     }
 
-  // Can change for other ef!
-  //gint ef = 1;
-  //dpb = pow (bg->distance, ef);
-  //dpf = pow (fg->distance, ef);
-
-  pfp = bg->gradient / (fg->gradient + bg->gradient);
+  // TODO calculate pfp, this is a GLOBAL value!!!
+  // pfp = bg->gradient / (fg->gradient + bg->gradient);
+  pfp = 0.5;
   ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
 
   *best_alpha = finalAlpha;
-  return Np * bg->distance * fg->distance * ap * ap;
-
-  /*
-
-  // TODO: this calculation will happen twice (also when storing the final value)
-  r = GET_PIXEL_BIGGER (bigger_cache, x, y, 0);
-  g = GET_PIXEL_BIGGER (bigger_cache, x, y, 1);
-  b = GET_PIXEL_BIGGER (bigger_cache, x, y, 2);
-  newAlpha = (fg[0] - bg[0]) * r + (fg[1] - bg[1]) * g + (fg[2] - bg[2]) * b;
-  newAlpha = newAlpha / sqrt ((fg[0] - bg[0])*(fg[0] - bg[0])+(fg[1] - bg[1])*(fg[1] - bg[1])+(fg[2] - bg[2])*(fg[2] - bg[2]));
-  // TODO: check if it should be 1 - newAlpha
-  newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
-   */
+  return pow(Np, 3) * pow(bg->distance, 4) * pow(fg->distance, 1) * pow(ap,2);
 }
 
 // searches for known regions for a given unknown pixel in a hash table
@@ -907,6 +889,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                   if (!found[toggle][direction].found)
                     {
                       // TODO: Check if value is initialized to zero
+                      // TODO: Is thir correct? I think we must use sobel...
                       found[toggle][direction].gradient += sqrt ((prevval[direction] - r) * (prevval[direction] - r)
                                                            + (prevval[direction + 1] - g) * (prevval[direction + 1] - g)
                                                            + (prevval[direction + 2] - b) * (prevval[direction + 2] - b));
