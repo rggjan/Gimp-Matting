@@ -51,7 +51,7 @@
 #include "tile-manager.h"
 #include "siox.h"
 
-#define IMAGE_DEBUG_PPM
+//#define IMAGE_DEBUG_PPM
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -1214,7 +1214,6 @@ siox_foreground_extract (SioxState          *state,
 
   // Phase 3, get better values from neighbours
   {
-    /*
      gint counter = 0;
      gint total = g_hash_table_size (unknown_hash);
 
@@ -1231,7 +1230,7 @@ siox_foreground_extract (SioxState          *state,
 
          current = g_hash_table_lookup (unknown_hash, &(current->next));
          counter++;
-       }*/
+       }
   }
 
   // Last phase, fill values from hash back into result layer
@@ -1261,10 +1260,10 @@ siox_foreground_extract (SioxState          *state,
 
                   if (current != NULL)
                     {
-                      pointer[0] = current->foreground[0];
-                      pointer[1] = current->foreground[1];
-                      pointer[2] = current->foreground[2];
-                      pointer[3] = current->alpha;
+                      pointer[0] = current->foreground_refined[0];
+                      pointer[1] = current->foreground_refined[1];
+                      pointer[2] = current->foreground_refined[2];
+                      pointer[3] = current->alpha_refined;
                     }
                 }
             }
