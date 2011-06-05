@@ -36,6 +36,7 @@
 #include "config.h"
 
 #include <glib-object.h>
+#include <glib-2.0/glib/gprintf.h>
 
 #include "libgimpbase/gimpbase.h"
 #include "libgimpmath/gimpmath.h"
@@ -505,8 +506,7 @@ objective_function (SearchStructure *fg,
   //gint ea = 2;
   //gint eb = 4;
   gint xi, yi;
-//  float ap, *pointer;
-//  float newAlpha, pfp, r, g, b;
+  float ap, pfp;
 
   float Np = 0;
 
@@ -538,8 +538,13 @@ objective_function (SearchStructure *fg,
   //dpb = pow (bg->distance, ef);
   //dpf = pow (fg->distance, ef);
 
+  pfp = bg->gradient / (fg->gradient + bg->gradient);
+  ap = pfp + (1 - 2 * pfp) * (1-finalAlpha);
+
+
+
   *best_alpha = finalAlpha;
-  return Np * bg->distance * fg->distance;
+  return Np * bg->distance * fg->distance * ap * ap;
 
   /*
 
@@ -551,17 +556,7 @@ objective_function (SearchStructure *fg,
   newAlpha = newAlpha / sqrt ((fg[0] - bg[0])*(fg[0] - bg[0])+(fg[1] - bg[1])*(fg[1] - bg[1])+(fg[2] - bg[2])*(fg[2] - bg[2]));
   // TODO: check if it should be 1 - newAlpha
   newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
-
-  // TODO uncomment things below... commented them because of compiler errors!
-
-  pointer = &fg[4];
-  pfp = *pointer;
-  pointer = &bg[4];
-  pfp = *pointer / (pfp + *pointer);
-  // TODO: should newAlpha be 1 or 255 here?
-  ap = pfp + (1 - 2 * pfp) * newAlpha;
-
-  return Np + ap + dpb + dpf;*/
+   */
 }
 
 // searches for known regions for a given unknown pixel in a hash table
@@ -578,6 +573,7 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
     {
       for (xi = -2; xi <= 2; xi++)
         {
+          // TODO: got a SEGFAULT once!!!
           // TODO check borders
           gfloat diffr = GET_PIXEL (big_cache, x + xi, y + yi, 0) - P[0];
           gfloat diffg = GET_PIXEL (big_cache, x + xi, y + yi, 1) - P[1];
@@ -590,18 +586,32 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
   return sum / 25;
 }
 
+typedef struct
+{
+  HashAddress color;
+  gfloat diff;
+} TopColor;
+
 static void inline
-compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
+compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_cache)
 {
   gint i;
   gint x = entry->this.coords.x;
   gint y = entry->this.coords.y;
 
   gint xdiff, ydiff;
+  gint num;
   gfloat min = -1;
   HashEntry *current;
 
   const gint radius = 14;
+
+  TopColor top3[3];
+
+  for (num = 0; num < 3; num++)
+    {
+      top3[num].diff = -1;
+    }
 
   for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
@@ -616,11 +626,13 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
           if (current && current->pair_found)
             {
               gfloat current_alpha;
+              // TODO: check if this projection is right! do we have to use other color values maybe?
               gfloat temp = projection (current->foreground,
                                         current->background,
                                         entry->color,
                                         &current_alpha);
 
+              
               if (temp < min || min < 0)
                 {
                   min = temp;
@@ -632,10 +644,117 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
                     }
                   entry->alpha_refined = (1 - current_alpha) * 255;
                 }
+
+              /*
+              // check if color is better than least best of colors, add the color and sort the list
+               if (temp < top3[2].diff || top3[2].diff < 0)
+                 {
+                   gint i = 2;
+                   for (num=1; num > -1; num--)
+                     {
+                       if (temp < top3[num].diff  || top3[num].diff < 0)
+                         {
+                           i = num;
+                         }
+                     }
+                   for (num=2; num > i; num--)
+                     {
+                       top3[num] = top3[num-1];
+                     }
+                   top3[i].diff = temp;
+                   top3[i].color = address;
+                   min++;
+                 }
+               */
             }
         }
     }
 
+  /*
+
+  if (min > 1)
+    {
+      guchar new_fg[3] = {0, 0, 0};
+      guchar new_bg[3] = {0, 0, 0};
+      int index;
+
+      for (num=0; num < 3; num++)
+        {
+          current = g_hash_table_lookup (unknown_hash, &(top3[num].color));
+          for (index=0; index < 3; index++)
+            {
+              // TODO: check if we should use ints here!
+              new_fg[index] += floor(current->foreground[index] / 3);
+              new_bg[index] += floor(current->background[index] / 3);
+            }
+        }
+
+      
+      float colordiff = 0;
+      for (index = 0; index < 3; index++)
+        {
+          colordiff += (entry->color[index] - new_fg[index])*(entry->color[index] - new_fg[index]);
+        }
+      if (colordiff > calculate_variance (new_fg, entry->this.coords.x, entry->this.coords.y, bigger_cache))
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->foreground_refined[index] = new_fg[index];
+            }
+        }
+      else
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->foreground_refined[index] = entry->foreground[index];
+            }
+        }
+
+      colordiff = 0;
+      for (index = 0; index < 3; index++)
+        {
+          colordiff += (entry->color[index] - new_bg[index])*(entry->color[index] - new_bg[index]);
+        }
+      if (colordiff > calculate_variance (new_bg, entry->this.coords.x, entry->this.coords.y, bigger_cache))
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->background_refined[index] = new_bg[index];
+            }
+        }
+      else
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->background_refined[index] = entry->background[index];
+            }
+        }
+      gint temp = 0;
+      for (index = 0; index < 3; index++)
+        {
+          temp += (entry->color[index] - entry->background_refined[index]) * (entry->foreground_refined[index] - entry->background_refined[index]);
+        }
+      float alpha_ref = (255 * (float) temp / (float) ((entry->foreground_refined[0] - entry->background_refined[0])*(entry->foreground_refined[0] - entry->background_refined[0]) + (entry->foreground_refined[1] - entry->background_refined[1]) * (entry->foreground_refined[1] - entry->background_refined[1]) + (entry->foreground_refined[2] - entry->background_refined[2]) * (entry->foreground_refined[2] - entry->background_refined[2])));
+      alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
+      entry->alpha_refined = (guchar) alpha_ref;
+
+      //test for best three pixels
+      //entry->foreground_refined[0] = new_fg[0];
+      //entry->foreground_refined[1] = new_fg[1];
+      //entry->foreground_refined[2] = new_fg[2];
+      //entry->alpha_refined = entry->alpha;
+    }
+  else
+    {
+      entry->foreground_refined[0] = 255;
+      entry->foreground_refined[1] = 0;
+      entry->foreground_refined[2] = 0;
+      entry->alpha_refined = 255;
+    }
+
+  */
+
+  
   if (min == -1)
     {
       entry->foreground_refined[0] = 255;
@@ -655,12 +774,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   gint direction, toggle, distance;
 
-  //(rgb + distance + float magn. gradient) * 4 directions * fground/bground
-  //guchar values[8 * 4 * 2];
   SearchStructure found[2][4];
 
-  /*guchar prevval[3 * 4];
-  guchar a;*/
+  guchar prevval[3 * 4];
   double angle;
   gint permutation[4];
 
@@ -677,18 +793,14 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         }
     }
 
-  /*
 
-  // initialize to original value*/
-  /*
+  // initialize to original value
   for (distance = 0; distance < 4; distance++)
     {
-      prevval[distance] = value[0];
-      prevval[distance + 1] = value[1];
-      prevval[distance + 2] = value[2];
+      prevval[distance] = entry->color[0];
+      prevval[distance + 1] = entry->color[1];
+      prevval[distance + 2] = entry->color[2];
     }
-   *
-   * */
 
   // Load coordinates from entry
   pos_x = entry->this.coords.x;
@@ -755,17 +867,14 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
               for (toggle = 0; toggle < 2; toggle++)
                 {
 
-                  /*
-                  // add gradient distance (as float)
-                  if (!found[direction*2 + toggle])
+                  // add gradient distance
+                  if (!found[toggle][direction].found)
                     {
-                      // TODO: Check if values is initialized to zero
-                      pointertemp = &values[direction * 16 + (toggle * 8) + 4];
-                      *pointertemp += sqrt ((prevval[direction] - r)*(prevval[direction] - r)
+                      // TODO: Check if value is initialized to zero
+                      found[toggle][direction].gradient += sqrt ((prevval[direction] - r)*(prevval[direction] - r)
                                             + (prevval[direction + 1] - g)*(prevval[direction + 1] - g)
                                             + (prevval[direction + 2] - b)*(prevval[direction + 2] - b));
                     }
-                  */
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
                     {
@@ -1219,9 +1328,9 @@ siox_foreground_extract (SioxState          *state,
 
      HashEntry *current = first_entry;
 
-     while (current != NULL && current->next.value != 0)
-       {
-         compare_neighborhood (current, unknown_hash);
+    while (current != NULL && current->next.value != 0)
+      {
+        compare_neighborhood (current, unknown_hash, big_cache);
 
          if ((counter & 0xff) == 0)
            siox_progress_update (progress_callback, progress_data,
