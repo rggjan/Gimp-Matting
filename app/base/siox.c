@@ -127,7 +127,7 @@ struct HashEntry_
 
   gfloat sigma_f_squared;
   gfloat sigma_b_squared;
-  
+
   gboolean pair_found;
   HashAddress this;
   HashAddress next;
@@ -364,8 +364,8 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
   gint    x, y;
   gint    bx, by;
   gint    width_tile, height_tile;
-  gint   cache_width = (radius*2+1)*64*CACHE_CHANNELS;
-  
+  gint   cache_width = (radius * 2 + 1) * 64 * CACHE_CHANNELS;
+
   Tile   *src_tile;
   guchar *pointer;
 
@@ -387,10 +387,10 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
 
               for (y = 0; y < height_tile; y++)
                 {
-                  by = (ydiff + radius)*64 + y;
+                  by = (ydiff + radius) * 64 + y;
                   for (x = 0; x < width_tile; x++)
                     {
-                      bx = (xdiff + radius)*64 + x;
+                      bx = (xdiff + radius) * 64 + x;
 
                       big_cache[by * cache_width + bx * 4] = *pointer;
                       big_cache[by * cache_width + bx * 4 + 1] = *(pointer + 1);
@@ -400,16 +400,16 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
                       pointer += 4;
                     }
                 }
-              
+
               tile_release (src_tile, FALSE);
             }
 
           for (y = 0; y < 64; y++)
             {
-              by = (ydiff + radius)*64 + y;
+              by = (ydiff + radius) * 64 + y;
               for (x = width_tile; x < 64; x++)
                 {
-                  bx = (xdiff + radius)*64 + x;
+                  bx = (xdiff + radius) * 64 + x;
 
                   big_cache[by * cache_width + bx * 4] = 0;
                   big_cache[by * cache_width + bx * 4 + 1] = 0;
@@ -417,13 +417,13 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
                   big_cache[by * cache_width + bx * 4 + 3] = 128;
                 }
             }
-          
-           for (y = height_tile; y < 64; y++)
+
+          for (y = height_tile; y < 64; y++)
             {
-              by = (ydiff + radius)*64 + y;
+              by = (ydiff + radius) * 64 + y;
               for (x = 0; x < width_tile; x++)
                 {
-                  bx = (xdiff + radius)*64 + x;
+                  bx = (xdiff + radius) * 64 + x;
 
                   big_cache[by * cache_width + bx * 4] = 0;
                   big_cache[by * cache_width + bx * 4 + 1] = 0;
@@ -431,13 +431,14 @@ load_big_cache (TileManager *source, guchar *big_cache, gint tx, gint ty,
                   big_cache[by * cache_width + bx * 4 + 3] = 128;
                 }
             }
-          
+
         }
     }
 }
 
 // TODO only use rgb in certain places
-typedef struct {
+typedef struct
+{
   guchar color[3];
   gboolean found;
   gint distance;
@@ -458,17 +459,17 @@ static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_po
   gfloat APy = P[1] - A[1];
   gfloat APz = P[2] - A[2];
 
-  gfloat dot_AB = ABx*ABx + ABy*ABy + ABz*ABz;
-  gfloat alpha = (ABx*APx + ABy*APy + ABz*APz) / dot_AB;
+  gfloat dot_AB = ABx * ABx + ABy * ABy + ABz * ABz;
+  gfloat alpha = (ABx * APx + ABy * APy + ABz * APz) / dot_AB;
 
-  gfloat PPx = P[0] - (A[0] + alpha*ABx);
-  gfloat PPy = P[1] - (A[1] + alpha*ABy);
-  gfloat PPz = P[2] - (A[2] + alpha*ABz);
+  gfloat PPx = P[0] - (A[0] + alpha * ABx);
+  gfloat PPy = P[1] - (A[1] + alpha * ABy);
+  gfloat PPz = P[2] - (A[2] + alpha * ABz);
 
   if (alpha_pointer)
     *alpha_pointer = (alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha));
 
-  return PPx*PPx + PPy*PPy + PPz*PPz;
+  return PPx * PPx + PPy * PPy + PPz * PPz;
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
@@ -486,7 +487,7 @@ objective_function (SearchStructure *fg,
   gint xi, yi;
 //  float ap, *pointer;
 //  float newAlpha, pfp, r, g, b;
-  
+
   float Np = 0;
 
   float finalAlpha;
@@ -532,7 +533,7 @@ objective_function (SearchStructure *fg,
   newAlpha = (newAlpha > 1 ? 1 : (newAlpha < 0 ? 0 : newAlpha));
 
   // TODO uncomment things below... commented them because of compiler errors!
-  
+
   pointer = &fg[4];
   pfp = *pointer;
   pointer = &bg[4];
@@ -562,7 +563,7 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, guchar* bigger_ca
           gfloat diffg = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 1) - P[1];
           gfloat diffb = GET_PIXEL_BIGGER (bigger_cache, x + xi, y + yi, 2) - P[2];
 
-          sum += diffr*diffr + diffg*diffg + diffb*diffb;
+          sum += diffr * diffr + diffg * diffg + diffb * diffb;
         }
     }
 
@@ -599,7 +600,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
                                         current->background,
                                         entry->color,
                                         &current_alpha);
-              
+
               if (temp < min || min < 0)
                 {
                   min = temp;
@@ -609,7 +610,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash)
                       entry->background_refined[i] = current->background[i];
 
                     }
-                  entry->alpha_refined = (1-current_alpha)*255;
+                  entry->alpha_refined = (1 - current_alpha) * 255;
                 }
             }
         }
@@ -647,7 +648,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   Tile *tile;
   guchar *pointer;
   float *pointertemp;
-*/
+  */
   for (toggle = 0; toggle < 2; toggle++)
     {
       for (direction = 0; direction < 4; direction++)
@@ -702,8 +703,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   // in a 9x9 window, we want to have values in a 90° window
   // TODO check if this really works!
-  angle = ((pos_x % 3) + (pos_y % 3) * 3)*2.*G_PI/9./4.;
-  
+  angle = ((pos_x % 3) + (pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
+
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
       // TODO precalculate these!
@@ -714,7 +715,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       permutation[1] = ydiff;
       permutation[2] = -xdiff;
       permutation[3] = -ydiff;
-      
+
       for (direction = 0; direction < 4; direction++)
         {
           if (found[0][direction].found && found[1][direction].found)
@@ -748,7 +749,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                             + (prevval[direction + 1] - g)*(prevval[direction + 1] - g)
                                             + (prevval[direction + 2] - b)*(prevval[direction + 2] - b));
                     }
-*/
+                  */
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
                     {
@@ -769,7 +770,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
     gint minindexb = -1;
 
     gint foreground_direction, background_direction;
-    
+
     gfloat best_alpha = -1;
 
     // calculate energy function for every fg/bg pair
@@ -817,7 +818,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->background[1] = best_background.color[1];
         entry->background[2] = best_background.color[2];
 
-        entry->alpha = (1-best_alpha)*255;
+        entry->alpha = (1 - best_alpha) * 255;
         entry->pair_found = TRUE;
 
         entry->sigma_b_squared = calculate_variance (best_background.color, pos_x, pos_y, bigger_cache);
@@ -838,7 +839,7 @@ initialize_new_layer (TileManager* source_layer,
   PixelRegionIterator *pr;
   gint row, col;
   int width, height;
-  
+
   width = tile_manager_width (source_layer);
   height = tile_manager_height(source_layer);
 
@@ -849,8 +850,8 @@ initialize_new_layer (TileManager* source_layer,
   g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
   for (pr = pixel_regions_register (3, &src, &dest, &mask);
-          pr != NULL;
-          pr = pixel_regions_process (pr))
+       pr != NULL;
+       pr = pixel_regions_process (pr))
     {
       const guchar *mask_data = mask.data;
       const guchar *src_data = src.data;
@@ -900,8 +901,8 @@ update_mask (TileManager* result_layer,
   g_return_if_fail (result.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
   for (pr = pixel_regions_register (2, &result, &mask);
-          pr != NULL;
-          pr = pixel_regions_process (pr))
+       pr != NULL;
+       pr = pixel_regions_process (pr))
     {
       const guchar *result_data = result.data;
       guchar *mask_data = mask.data;
@@ -950,9 +951,9 @@ check_closeness (guchar color[3], guchar *big_cache, gint x, gint y, guchar* res
       for (i = 0; i < 3; i++)
         {
           color_distance = color[i] -
-                  GET_PIXEL (big_cache, x, y, i);
+                           GET_PIXEL (big_cache, x, y, i);
           color_distance_sum +=
-                  color_distance*color_distance;
+            color_distance * color_distance;
         }
 
       if (color_distance_sum < MATTING_SQUARED_COLOR_DISTANCE)
@@ -991,16 +992,16 @@ search_for_neighbours (guchar* big_cache, gint x, gint y, guchar* result)
     {
       for (n = -radius; n < radius; n++)
         {
-          if (check_closeness (color, big_cache, x+radius, y+n, result))
+          if (check_closeness (color, big_cache, x + radius, y + n, result))
             return;
 
-          if (check_closeness (color, big_cache, x-radius, y+n, result))
+          if (check_closeness (color, big_cache, x - radius, y + n, result))
             return;
 
-          if (check_closeness (color, big_cache, x+n, y+radius, result))
+          if (check_closeness (color, big_cache, x + n, y + radius, result))
             return;
 
-          if (check_closeness (color, big_cache, x+n, y-radius, result))
+          if (check_closeness (color, big_cache, x + n, y - radius, result))
             return;
         }
     }
@@ -1047,7 +1048,7 @@ siox_foreground_extract (SioxState          *state,
                          TileManager        *result_layer,
                          TileManager        *working_layer)
 {
-  static int i=0;
+  static int i = 0;
   if (i++ == 0)
     return;
 
@@ -1071,11 +1072,11 @@ siox_foreground_extract (SioxState          *state,
   static       GHashTable *unknown_hash = NULL;
   //guchar      *unknown_pixel;
   //guchar      *resulttest;
-  
+
   //resulttest = g_malloc (8);
 
   unknown_hash = g_hash_table_new(g_int64_hash, g_int64_equal);
-  
+
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
   g_return_if_fail (x1 >= 0);
@@ -1109,7 +1110,7 @@ siox_foreground_extract (SioxState          *state,
         {
           guint   height_tile;
           guint   width_tile;
-          
+
           load_big_cache (working_layer, big_cache, tx, ty, 1);
 
 #ifdef IMAGE_DEBUG_PPM
@@ -1129,7 +1130,7 @@ siox_foreground_extract (SioxState          *state,
 
           width_tile = tile_ewidth (tile);
           height_tile = tile_eheight (tile);
-          
+
           for (y = 0; y < height_tile; y++)
             {
               for (x = 0; x < width_tile; x++, pointer += 4)
@@ -1152,8 +1153,8 @@ siox_foreground_extract (SioxState          *state,
                       entry->foreground[2] = 0;
                       entry->alpha = 255;
                       entry->pair_found = FALSE;
-                      entry->this.coords.x = tx*64+x;
-                      entry->this.coords.y = ty*64+y;
+                      entry->this.coords.x = tx * 64 + x;
+                      entry->this.coords.y = ty * 64 + y;
 
                       // TODO maybe look this up in image, instead of
                       // saving it redundantly in cache
@@ -1241,8 +1242,8 @@ siox_foreground_extract (SioxState          *state,
                 {
                   HashEntry *current;
                   HashAddress address;
-                  address.coords.x = tx*64+x;
-                  address.coords.y = ty*64+y;
+                  address.coords.x = tx * 64 + x;
+                  address.coords.y = ty * 64 + y;
 
                   current = g_hash_table_lookup (unknown_hash, &address);
 
