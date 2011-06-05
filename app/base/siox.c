@@ -252,9 +252,9 @@ static void debug_cache (const char* filename, BigCache cache, int radius)
   fprintf (f_alpha, "P5\n%d %d\n255\n", size, size);
   {
     int x, y;
-    for (y = -radius * 64; y < (radius+1) * 64; y++)
+    for (y = -radius * 64; y < (radius + 1) * 64; y++)
       {
-        for (x = -radius * 64; x < (radius+1) * 64; x++)
+        for (x = -radius * 64; x < (radius + 1) * 64; x++)
           {
             fwrite (&GET_PIXEL(cache, x, y, 0), 1, 3, f_color);
             fwrite (&GET_PIXEL(cache, x, y, 3), 1, 1, f_alpha);
@@ -542,7 +542,7 @@ objective_function (SearchStructure *fg,
   //dpf = pow (fg->distance, ef);
 
   pfp = bg->gradient / (fg->gradient + bg->gradient);
-  ap = pfp + (1 - 2 * pfp) * (1-finalAlpha);
+  ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
 
 
 
@@ -635,7 +635,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_c
                                         entry->color,
                                         &current_alpha);
 
-              
+
               if (temp < min || min < 0)
                 {
                   min = temp;
@@ -692,7 +692,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_c
             }
         }
 
-      
+
       float colordiff = 0;
       for (index = 0; index < 3; index++)
         {
@@ -757,7 +757,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash, BigCache big_c
 
   */
 
-  
+
   if (min == -1)
     {
       entry->foreground_refined[0] = 255;
@@ -874,9 +874,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                   if (!found[toggle][direction].found)
                     {
                       // TODO: Check if value is initialized to zero
-                      found[toggle][direction].gradient += sqrt ((prevval[direction] - r)*(prevval[direction] - r)
-                                            + (prevval[direction + 1] - g)*(prevval[direction + 1] - g)
-                                            + (prevval[direction + 2] - b)*(prevval[direction + 2] - b));
+                      found[toggle][direction].gradient += sqrt ((prevval[direction] - r) * (prevval[direction] - r)
+                                                           + (prevval[direction + 1] - g) * (prevval[direction + 1] - g)
+                                                           + (prevval[direction + 2] - b) * (prevval[direction + 2] - b));
                     }
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
@@ -1326,23 +1326,23 @@ siox_foreground_extract (SioxState          *state,
 
   // Phase 3, get better values from neighbours
   {
-     gint counter = 0;
-     gint total = g_hash_table_size (unknown_hash);
+    gint counter = 0;
+    gint total = g_hash_table_size (unknown_hash);
 
-     HashEntry *current = first_entry;
+    HashEntry *current = first_entry;
 
     while (current != NULL && current->next.value != 0)
       {
         compare_neighborhood (current, unknown_hash, big_cache);
 
-         if ((counter & 0xff) == 0)
-           siox_progress_update (progress_callback, progress_data,
-                                 ((float) counter) / total);
+        if ((counter & 0xff) == 0)
+          siox_progress_update (progress_callback, progress_data,
+                                ((float) counter) / total);
 
 
-         current = g_hash_table_lookup (unknown_hash, &(current->next));
-         counter++;
-       }
+        current = g_hash_table_lookup (unknown_hash, &(current->next));
+        counter++;
+      }
   }
 
   // Last phase, fill values from hash back into result layer
