@@ -89,8 +89,11 @@
 #define BIG_CACHE_RADIUS 3
 #define BIG_CACHE_SIZE ((BIG_CACHE_RADIUS*2+1)*64)
 #define GET_PIXEL(big_cache, x, y, color) (big_cache[BIG_CACHE_RADIUS*64+y][BIG_CACHE_RADIUS*64+x][color])
-
 typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
+
+#define HASH_CACHE_RADIUS 1
+#define HASH_CACHE_SIZE ((HASH_CACHE_RADIUS*2+1)*64)
+typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 
 typedef union
 {
