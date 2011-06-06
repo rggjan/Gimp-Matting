@@ -652,7 +652,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                                         &current_alpha);
 
 
-              /*
               if (temp < min || min < 0)
                 {
                   gint i;
@@ -664,7 +663,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                     }
                   entry->alpha_refined = (1 - current_alpha) * 255;
                 }
-               */
+/*
               // check if color is better than least best of colors, add the color and sort the list
                if (temp < top3[2].diff || top3[2].diff < 0)
                  {
@@ -684,13 +683,13 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                    top3[i].x = pos_x +xdiff;
                    top3[i].y = pos_y +ydiff;
                    min++;
-                 }
+                 }*/
                
             }
         }
     }
 
- 
+ /*
 
   if (min > 1)
     {
@@ -772,7 +771,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->alpha_refined = 255;
     }
 
-  
+  */
 
 
   if (min == -1)
