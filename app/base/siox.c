@@ -706,22 +706,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
               new_sigma_b_squared += current->sigma_b_squared / matches;
             }
         }
-      /*
-            for (i = 0; i < 3; i++)
-              {
-                entry->foreground_refined[i] = new_fg[i];
-                entry->background_refined[i] = new_bg[i];
-              }
-
-            gfloat current_alpha;
-            projection (entry->foreground_refined,
-                        entry->background_refined,
-                        entry->color,
-                        &current_alpha);
-
-
-            entry->alpha_refined = (1 - current_alpha) * 255;*/
-
 
       float colordiff = 0;
       for (index = 0; index < 3; index++)
@@ -763,25 +747,30 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      gfloat current_alpha;
-      projection (entry->foreground_refined,
-                  entry->background_refined,
-                  entry->color,
-                  &current_alpha);
+      gfloat lower = 0;
+      gfloat upper = 0;
+      for (index = 0; index < 3; index++)
+        {
+          gint diff = entry->foreground_refined[index];
+          diff -= entry->background_refined[index];
+          lower += diff * diff;
+        }
 
+      for (index = 0; index < 3; index++)
+        {
+          gint first_diff, second_diff;
+          first_diff = entry->color[index];
+          first_diff -= entry->background_refined[index];
 
-      entry->alpha_refined = (1 - current_alpha) * 255;
+          second_diff = entry->foreground_refined[index];
+          second_diff -= entry->background_refined[index];
+          upper += first_diff * second_diff;
+        }
 
-      /*
-                  gint temp = 0;
-                  for (index = 0; index < 3; index++)
-      {
-        temp += (entry->color[index] - entry->background_refined[index]) * (entry->foreground_refined[index] - entry->background_refined[index]);
-      }
-                  float alpha_ref = (255 * (float) temp / (float) ((entry->foreground_refined[0] - entry->background_refined[0])*(entry->foreground_refined[0] - entry->background_refined[0]) + (entry->foreground_refined[1] - entry->background_refined[1]) * (entry->foreground_refined[1] - entry->background_refined[1]) + (entry->foreground_refined[2] - entry->background_refined[2]) * (entry->foreground_refined[2] - entry->background_refined[2])));
-                  alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
-                  entry->alpha_refined = (guchar) alpha_ref;
-      */
+      gint alpha_ref = 255 * upper / lower;
+      alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
+      entry->alpha_refined = (guchar) alpha_ref;
+
       //test for best three pixels
       //entry->foreground_refined[0] = new_fg[0];
       //entry->foreground_refined[1] = new_fg[1];
