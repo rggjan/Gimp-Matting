@@ -572,7 +572,8 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
 
 typedef struct
 {
-  HashAddress color;
+  gint x;
+  gint y;
   gfloat diff;
 } TopColor;
 
@@ -651,6 +652,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                                         &current_alpha);
 
 
+              /*
               if (temp < min || min < 0)
                 {
                   gint i;
@@ -662,8 +664,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                     }
                   entry->alpha_refined = (1 - current_alpha) * 255;
                 }
-
-              /*
+               */
               // check if color is better than least best of colors, add the color and sort the list
                if (temp < top3[2].diff || top3[2].diff < 0)
                  {
@@ -680,15 +681,16 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                        top3[num] = top3[num-1];
                      }
                    top3[i].diff = temp;
-                   top3[i].color = address;
+                   top3[i].x = pos_x +xdiff;
+                   top3[i].y = pos_y +ydiff;
                    min++;
                  }
-               */
+               
             }
         }
     }
 
-  /*
+ 
 
   if (min > 1)
     {
@@ -698,7 +700,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
       for (num=0; num < 3; num++)
         {
-          current = g_hash_table_lookup (unknown_hash, &(top3[num].color));
+          current = GET_ENTRY(hash_cache, top3[num].x, top3[num].y);
           for (index=0; index < 3; index++)
             {
               // TODO: check if we should use ints here!
@@ -713,7 +715,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         {
           colordiff += (entry->color[index] - new_fg[index])*(entry->color[index] - new_fg[index]);
         }
-      if (colordiff > calculate_variance (new_fg, entry->this.coords.x, entry->this.coords.y, bigger_cache))
+      if (colordiff > calculate_variance (new_fg, pos_x, pos_y, big_cache))
         {
           for (index = 0; index < 3; index++)
             {
@@ -733,7 +735,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         {
           colordiff += (entry->color[index] - new_bg[index])*(entry->color[index] - new_bg[index]);
         }
-      if (colordiff > calculate_variance (new_bg, entry->this.coords.x, entry->this.coords.y, bigger_cache))
+      if (colordiff > calculate_variance (new_bg, pos_x, pos_y, big_cache))
         {
           for (index = 0; index < 3; index++)
             {
@@ -770,7 +772,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->alpha_refined = 255;
     }
 
-  */
+  
 
 
   if (min == -1)
