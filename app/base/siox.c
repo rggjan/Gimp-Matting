@@ -468,6 +468,8 @@ typedef struct
   gboolean found;
   gint distance;
   gfloat gradient;
+  gint x;
+  gint y;
 } SearchStructure;
 
 // Project the Point P onto the line from A-B.
@@ -685,6 +687,8 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
       guchar new_fg[3] = {0, 0, 0};
       guchar new_bg[3] = {0, 0, 0};
+      gfloat new_sigma_f_squared = 0;
+      gfloat new_sigma_b_squared = 0;
 
       gint index;
 
@@ -698,13 +702,65 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
               // TODO: check if we should use ints here!
               new_fg[index] += floor(current->foreground[index] / matches);
               new_bg[index] += floor(current->background[index] / matches);
+              new_sigma_f_squared += current->sigma_f_squared / matches;
+              new_sigma_b_squared += current->sigma_b_squared / matches;
+            }
+        }
+      /*
+            for (i = 0; i < 3; i++)
+              {
+                entry->foreground_refined[i] = new_fg[i];
+                entry->background_refined[i] = new_bg[i];
+              }
+
+            gfloat current_alpha;
+            projection (entry->foreground_refined,
+                        entry->background_refined,
+                        entry->color,
+                        &current_alpha);
+
+
+            entry->alpha_refined = (1 - current_alpha) * 255;*/
+
+
+      float colordiff = 0;
+      for (index = 0; index < 3; index++)
+        {
+          colordiff += (((float)entry->color[index]) - new_fg[index]) * (((float)entry->color[index]) - new_fg[index]);
+        }
+      if (colordiff > new_sigma_f_squared)
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->foreground_refined[index] = new_fg[index];
+            }
+        }
+      else
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->foreground_refined[index] = entry->color[index];
             }
         }
 
-      for (i = 0; i < 3; i++)
+      colordiff = 0;
+      for (index = 0; index < 3; index++)
         {
-          entry->foreground_refined[i] = new_fg[i];
-          entry->background_refined[i] = new_bg[i];
+          colordiff += (((float)entry->color[index]) - new_bg[index]) * (((float)entry->color[index]) - new_bg[index]);
+        }
+      if (colordiff > new_sigma_b_squared)
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->background_refined[index] = new_bg[index];
+            }
+        }
+      else
+        {
+          for (index = 0; index < 3; index++)
+            {
+              entry->background_refined[index] = entry->color[index];
+            }
         }
 
       gfloat current_alpha;
@@ -717,59 +773,20 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->alpha_refined = (1 - current_alpha) * 255;
 
       /*
-            float colordiff = 0;
-            for (index = 0; index < 3; index++)
-              {
-                colordiff += (entry->color[index] - new_fg[index])*(entry->color[index] - new_fg[index]);
-              }
-            if (colordiff > calculate_variance (new_fg, pos_x, pos_y, big_cache))
-              {
-                for (index = 0; index < 3; index++)
-                  {
-                    entry->foreground_refined[index] = new_fg[index];
-                  }
-              }
-            else
-              {
-                for (index = 0; index < 3; index++)
-                  {
-                    entry->foreground_refined[index] = entry->foreground[index];
-                  }
-              }
-
-            colordiff = 0;
-            for (index = 0; index < 3; index++)
-              {
-                colordiff += (entry->color[index] - new_bg[index])*(entry->color[index] - new_bg[index]);
-              }
-            if (colordiff > calculate_variance (new_bg, pos_x, pos_y, big_cache))
-              {
-                for (index = 0; index < 3; index++)
-                  {
-                    entry->background_refined[index] = new_bg[index];
-                  }
-              }
-            else
-              {
-                for (index = 0; index < 3; index++)
-                  {
-                    entry->background_refined[index] = entry->background[index];
-                  }
-              }
-            gint temp = 0;
-            for (index = 0; index < 3; index++)
-              {
-                temp += (entry->color[index] - entry->background_refined[index]) * (entry->foreground_refined[index] - entry->background_refined[index]);
-              }
-            float alpha_ref = (255 * (float) temp / (float) ((entry->foreground_refined[0] - entry->background_refined[0])*(entry->foreground_refined[0] - entry->background_refined[0]) + (entry->foreground_refined[1] - entry->background_refined[1]) * (entry->foreground_refined[1] - entry->background_refined[1]) + (entry->foreground_refined[2] - entry->background_refined[2]) * (entry->foreground_refined[2] - entry->background_refined[2])));
-            alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
-            entry->alpha_refined = (guchar) alpha_ref;
-
-            //test for best three pixels
-            //entry->foreground_refined[0] = new_fg[0];
-            //entry->foreground_refined[1] = new_fg[1];
-            //entry->foreground_refined[2] = new_fg[2];
-            //entry->alpha_refined = entry->alpha;*/
+                  gint temp = 0;
+                  for (index = 0; index < 3; index++)
+      {
+        temp += (entry->color[index] - entry->background_refined[index]) * (entry->foreground_refined[index] - entry->background_refined[index]);
+      }
+                  float alpha_ref = (255 * (float) temp / (float) ((entry->foreground_refined[0] - entry->background_refined[0])*(entry->foreground_refined[0] - entry->background_refined[0]) + (entry->foreground_refined[1] - entry->background_refined[1]) * (entry->foreground_refined[1] - entry->background_refined[1]) + (entry->foreground_refined[2] - entry->background_refined[2]) * (entry->foreground_refined[2] - entry->background_refined[2])));
+                  alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
+                  entry->alpha_refined = (guchar) alpha_ref;
+      */
+      //test for best three pixels
+      //entry->foreground_refined[0] = new_fg[0];
+      //entry->foreground_refined[1] = new_fg[1];
+      //entry->foreground_refined[2] = new_fg[2];
+      //entry->alpha_refined = entry->alpha;*/
     }
   else
     {
@@ -909,6 +926,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                       found[toggle][direction].color[2] = b;
                       found[toggle][direction].distance = distance;
                       found[toggle][direction].found = TRUE;
+                      found[toggle][direction].x = xtmp;
+                      found[toggle][direction].y = ytmp;
                     }
                 }
             }
@@ -972,8 +991,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->alpha = (1 - best_alpha) * 255;
         entry->pair_found = TRUE;
 
-        entry->sigma_b_squared = calculate_variance (best_background.color, pos_x, pos_y, big_cache);
-        entry->sigma_f_squared = calculate_variance (best_foreground.color, pos_x, pos_y, big_cache);
+        entry->sigma_b_squared = calculate_variance (best_background.color, best_background.x, best_background.y, big_cache);
+        entry->sigma_f_squared = calculate_variance (best_foreground.color, best_foreground.x, best_foreground.y, big_cache);
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
