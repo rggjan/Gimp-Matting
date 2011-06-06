@@ -613,7 +613,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
   gint xdiff, ydiff;
   gint num;
   gint matches = 0;
-  gfloat min = INFINITY;
 
   HashEntry *current;
   TopColor top3[3];
@@ -656,19 +655,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                                         entry->color,
                                         &current_alpha);
 
-
-                     /*       if (temp < min)
-                              {
-                                gint i;
-                                min = temp;
-                                for (i = 0; i < 3; i++)
-                                  {
-                                    entry->foreground_refined[i] = current->foreground[i];
-                                    entry->background_refined[i] = current->background[i];
-                                  }
-                                entry->alpha_refined = (1 - current_alpha) * 255;
-                              }*/
-
               // check if color is better than least best of colors, add the color and sort the list
               if (temp < top3[2].diff)
                 {
@@ -695,13 +681,14 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   if (matches >= 1)
     {
-      matches = matches > 3 ? 3 : matches;
-
       gint i;
 
       guchar new_fg[3] = {0, 0, 0};
       guchar new_bg[3] = {0, 0, 0};
-      int index;
+
+      gint index;
+
+      matches = matches > 3 ? 3 : matches;
 
       for (num = 0; num < matches; num++)
         {
@@ -1047,6 +1034,7 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+#ifdef DEBUG_EXTENSION
 static void
 update_mask (TileManager* result_layer,
              TileManager* mask_layer)
@@ -1098,6 +1086,7 @@ update_mask (TileManager* result_layer,
         }
     }
 }
+#endif
 
 static inline gboolean
 check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* result)
