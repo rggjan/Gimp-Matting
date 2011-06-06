@@ -487,12 +487,14 @@ static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_po
   gfloat dot_AB = ABx * ABx + ABy * ABy + ABz * ABz;
   gfloat alpha = (ABx * APx + ABy * APy + ABz * APz) / dot_AB;
 
+  alpha = alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha);
+
   gfloat PPx = P[0] - (A[0] + alpha * ABx);
   gfloat PPy = P[1] - (A[1] + alpha * ABy);
   gfloat PPz = P[2] - (A[2] + alpha * ABz);
 
   if (alpha_pointer)
-    *alpha_pointer = (alpha > 1 ? 1 : (alpha < 0 ? 0 : alpha));
+    *alpha_pointer = alpha;
 
   return PPx * PPx + PPy * PPy + PPz * PPz;
 }
@@ -608,7 +610,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   gint xdiff, ydiff;
   gint num;
-  gfloat min = -1;
+  gfloat min = INFINITY;
 
   HashEntry *current;
   TopColor top3[3];  
@@ -633,7 +635,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   for (num = 0; num < 3; num++)
     {
-      top3[num].diff = -1;
+      top3[num].diff = INFINITY;
     }
 
   for (ydiff = -HASH_CACHE_EXTRA; ydiff <= HASH_CACHE_EXTRA; ydiff++)
@@ -652,7 +654,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                                         &current_alpha);
 
 
-              if (temp < min || min < 0)
+              if (temp < min)
                 {
                   gint i;
                   min = temp;
@@ -774,7 +776,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
   */
 
 
-  if (min == -1)
+  if (min == INFINITY)
     {
       entry->foreground_refined[0] = 255;
       entry->foreground_refined[1] = 0;
