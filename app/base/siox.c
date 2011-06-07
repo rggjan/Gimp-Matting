@@ -1265,8 +1265,6 @@ siox_foreground_extract (SioxState          *state,
                          TileManager        *result_layer,
                          TileManager        *working_layer)
 {
-  static int i = 0;
-
   //gint         width, height;
   BigCache     big_cache;
   gint         tiles_x, tiles_y;
@@ -1283,13 +1281,6 @@ siox_foreground_extract (SioxState          *state,
   HashEntry   *previous_entry = NULL;
 
   static       GHashTable *unknown_hash = NULL;
-  //guchar      *unknown_pixel;
-  //guchar      *resulttest;
-
-  if (i++ == 0)
-    return;
-
-  //resulttest = g_malloc (8);
 
   unknown_hash = g_hash_table_new(g_int64_hash, g_int64_equal);
 
@@ -1301,19 +1292,12 @@ siox_foreground_extract (SioxState          *state,
   g_return_if_fail (y2 > y1 && y2 <= tile_manager_height (mask));
   g_return_if_fail (smoothness >= 0);
   g_return_if_fail (progress_data == NULL || progress_callback != NULL);
-
-  //width  = state->width;
-  //height = state->height;
-
   g_return_if_fail (TILE_WIDTH == 64 && TILE_HEIGHT == 64);
-
   g_return_if_fail (tile_manager_bpp (state->pixels) == 3);
   g_return_if_fail (tile_manager_bpp (result_layer) == 4);
 
   tiles_x = tile_manager_tiles_per_col (state->pixels);
   tiles_y = tile_manager_tiles_per_row (state->pixels);
-  //tiles_x = state->pixels->ntile_cols;
-  //tiles_y = state->pixels->ntile_rows;
 
 #ifdef DEBUG_PREDEFINED_MASK
   read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
@@ -1470,19 +1454,6 @@ siox_foreground_extract (SioxState          *state,
             }
         }
     }
-
-  /*
-  foreach_args[0] = bigger_cache;
-  foreach_args[1] = working_layer;
-  foreach_args[2] = result_layer;
-  loaded_tile_x = -1;
-  loaded_tile_y = -1;
-  foreach_args[3] = &loaded_tile_x;
-  foreach_args[4] = &loaded_tile_y;
-
-  // TODO replace foreach
-  g_hash_table_foreach (unknown_hash, (GHFunc) search_neighborhood, foreach_args);
-   */
 }
 
 /*
