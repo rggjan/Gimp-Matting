@@ -83,6 +83,20 @@
 #define MULTIBLOB_DEFAULT_SIZEFACTOR 4
 #define MULTIBLOB_ONE_BLOB_ONLY      0
 
+const float gauss[13][13] = {1.7102e-06,8.0986e-06,2.8906e-05,7.7761e-05,0.00015767,0.00024095,0.00027754,0.00024095,0.00015767,7.7761e-05,2.8906e-05,8.0986e-06,1.7102e-06,
+8.0986e-06,3.8351e-05,0.00013688,0.00036824,0.00074664,0.001141,0.0013143,0.001141,0.00074664,0.00036824,0.00013688,3.8351e-05,8.0986e-06,
+2.8906e-05,0.00013688,0.00048856,0.0013143,0.0026649,0.0040726,0.0046911,0.0040726,0.0026649,0.0013143,0.00048856,0.00013688,2.8906e-05,
+7.7761e-05,0.00036824,0.0013143,0.0035357,0.007169,0.010956,0.01262,0.010956,0.007169,0.0035357,0.0013143,0.00036824,7.7761e-05,
+0.00015767,0.00074664,0.0026649,0.007169,0.014536,0.022215,0.025588,0.022215,0.014536,0.007169,0.0026649,0.00074664,0.00015767,
+0.00024095,0.001141,0.0040726,0.010956,0.022215,0.033949,0.039104,0.033949,0.022215,0.010956,0.0040726,0.001141,0.00024095,
+0.00027754,0.0013143,0.0046911,0.01262,0.025588,0.039104,0.045042,0.039104,0.025588,0.01262,0.0046911,0.0013143,0.00027754,
+0.00024095,0.001141,0.0040726,0.010956,0.022215,0.033949,0.039104,0.033949,0.022215,0.010956,0.0040726,0.001141,0.00024095,
+0.00015767,0.00074664,0.0026649,0.007169,0.014536,0.022215,0.025588,0.022215,0.014536,0.007169,0.0026649,0.00074664,0.00015767,
+7.7761e-05,0.00036824,0.0013143,0.0035357,0.007169,0.010956,0.01262,0.010956,0.007169,0.0035357,0.0013143,0.00036824,7.7761e-05,
+2.8906e-05,0.00013688,0.00048856,0.0013143,0.0026649,0.0040726,0.0046911,0.0040726,0.0026649,0.0013143,0.00048856,0.00013688,2.8906e-05,
+8.0986e-06,3.8351e-05,0.00013688,0.00036824,0.00074664,0.001141,0.0013143,0.001141,0.00074664,0.00036824,0.00013688,3.8351e-05,8.0986e-06,
+1.7102e-06,8.0986e-06,2.8906e-05,7.7761e-05,0.00015767,0.00024095,0.00027754,0.00024095,0.00015767,7.7761e-05,2.8906e-05,8.0986e-06,1.7102e-06};
+
 
 typedef union
 {
@@ -109,6 +123,8 @@ struct HashEntry_
 
   gfloat sigma_f_squared;
   gfloat sigma_b_squared;
+
+  gfloat confidence;
 
   gboolean pair_found;
   HashAddress this;
@@ -482,16 +498,16 @@ typedef struct
 } TopColor;
 
 static void load_hash_cache (GHashTable* unknown_hash, HashCache hash_cache,
-                             gint tx, gint ty)
+                             gint tx, gint ty, gint bordersize)
 {
 
   gint x, y;
   gint xoff = tx * 64;
   gint yoff = ty * 64;
 
-  for (y = -HASH_CACHE_EXTRA; y < HASH_CACHE_EXTRA + 64; y++)
+  for (y = -bordersize; y < bordersize + 64; y++)
     {
-      for (x = -HASH_CACHE_EXTRA; x < HASH_CACHE_EXTRA + 64; x++)
+      for (x = -bordersize; x < bordersize + 64; x++)
         {
           HashAddress address;
           address.coords.x = x + xoff;
@@ -529,7 +545,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   if (*current_tx != tx || *current_ty != ty)
     {
-      load_hash_cache (unknown_hash, hash_cache, tx, ty);
+      load_hash_cache (unknown_hash, hash_cache, tx, ty, 14);
 
       *current_tx = tx;
       *current_ty = ty;
@@ -540,6 +556,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       top3[num].diff = INFINITY;
     }
 
+  // TODO: change this to radius! (not square)
   for (ydiff = -HASH_CACHE_EXTRA; ydiff <= HASH_CACHE_EXTRA; ydiff++)
     {
       for (xdiff = -HASH_CACHE_EXTRA; xdiff <= HASH_CACHE_EXTRA; xdiff++)
@@ -675,6 +692,125 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         entry->foreground_refined[2] = 0;
         entry->alpha_refined = 255;
       }*/
+}
+
+static void inline
+calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
+                        gfloat fq[3], gfloat fd[3], gfloat bq[3], gfloat bd[3],
+                        HashCache hash_cache, BigCache big_cache)
+{
+  guchar fg[3], bg[3];
+  gint i;
+  gfloat alpha, confidence;
+  HashEntry* current;
+
+  current = GET_ENTRY(hash_cache, x, y);
+  if(current == NULL)
+    {
+      alpha = GET_PIXEL (big_cache, x, y, 3);
+      alpha = (alpha == 255 ? 1 : 0);
+
+      for (i = 0; i < 3; i++)
+        {
+          if (alpha == 1)
+            {
+              fg[i] = GET_PIXEL (big_cache, x, y, i);
+            }
+          else
+            {
+              bg[i] = GET_PIXEL (big_cache, x, y, i);
+            }
+        }
+      confidence = 1;
+    }
+  else
+    {
+      for (i = 0; i < 3; i++)
+       {
+          fg[i] = current->foreground_refined[i];
+          bg[i] = current->background_refined[i];
+        }
+      alpha = current->alpha_refined;
+      confidence = current->confidence;
+    }
+
+  // TODO: Special Case for original pixel
+  if (x == 0 && y == 0)
+    {
+      gauss = gauss * confidence;
+    }
+  else
+    {
+      gauss = gauss * confidence * ((alpha_orig / 255) - alpha);
+    }
+
+  for (i = 0; i < 3; i++)
+    {
+      fq[i] += gauss * alpha * fg[i];
+      fd[i] += gauss * alpha;
+      bq[i] += gauss * (1 - alpha) * bg[i];
+      bd[i] += gauss * (1 - alpha);
+    }
+}
+
+static void inline
+local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
+                 HashCache hash_cache, GHashTable* unknown_hash,
+                 BigCache big_cache, TileManager *working_layer)
+{
+  gint pos_x, pos_y;
+  gint tx, ty;
+  gint i;
+
+  gint xdiff, ydiff;
+  gfloat fq[3] = {0, 0, 0}, fd[3] = {0, 0, 0}, bq[3] = {0, 0, 0}, bd[3] = {0, 0, 0};
+  gfloat gauss[13][13];
+
+  HashEntry *current;
+
+
+  for (tx = 0; tx < 13; tx++)
+    {
+      for (ty = 0; ty < 13; ty++)
+        {
+          gauss[tx][ty] = 1;
+        }
+    }
+
+  // Load coordinates from entry
+  pos_x = entry->this.coords.x;
+  pos_y = entry->this.coords.y;
+
+  tx = pos_x / 64;
+  ty = pos_y / 64;
+
+  pos_x = pos_x - 64 * tx;
+  pos_y = pos_y - 64 * ty;
+
+  if (*current_tx != tx || *current_ty != ty)
+    {
+      load_hash_cache (unknown_hash, hash_cache, tx, ty, 5);
+      load_big_cache (working_layer, big_cache, tx, ty, 1);
+
+      *current_tx = tx;
+      *current_ty = ty;
+    }
+  
+
+  for (ydiff = -5; ydiff <= 5; ydiff++)
+    {
+      for (xdiff = -5; xdiff <= 5; xdiff++)
+        {
+          current = GET_ENTRY(hash_cache, pos_x + xdiff, pos_y + ydiff);
+          calculate_final_colors (gauss[6+xdiff][6+ydiff], pos_x + xdiff, pos_y + ydiff, current->alpha_refined, &fq, &fd, &bq, &bd, hash_cache, big_cache);
+        }
+    }
+
+  for (i = 0; i < 3; i++)
+    {
+      entry->foreground[i] = fq[i] / fd[i];
+      entry->background[i] = bq[i] / fd[i];
+    }
 }
 
 static void inline
@@ -1291,6 +1427,24 @@ siox_foreground_extract (SioxState          *state,
       {
         compare_neighborhood (current, &current_tx, &current_ty,
                               hash_cache, unknown_hash, big_cache);
+
+        current = g_hash_table_lookup (unknown_hash, &(current->next));
+      }
+  }
+#endif
+
+  #ifndef DEBUG_PHASE3
+  // Phase 4, get final color values
+  {
+    HashEntry *current = first_entry;
+    HashCache hash_cache;
+    gint current_tx = -1;
+    gint current_ty = -1;
+
+    while (current != NULL && current->next.value != 0)
+      {
+        local_smoothing (current, &current_tx, &current_ty,
+                              hash_cache, unknown_hash, big_cache, working_layer);
 
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
