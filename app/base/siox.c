@@ -33,22 +33,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
-
 #include <glib-object.h>
 #include <glib-2.0/glib/gprintf.h>
 
-#include "libgimpbase/gimpbase.h"
 #include "libgimpmath/gimpmath.h"
 
-#include "base-types.h"
 #include "core/core-types.h"
 
-#include "paint-funcs/paint-funcs.h"
-
-#include "cpercep.h"
 #include "pixel-region.h"
 #include "tile.h"
+
 #include "tile-manager.h"
 #include "siox.h"
 
@@ -135,50 +129,11 @@ typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
 #define GET_ENTRY(hash_cache, x, y) (hash_cache[HASH_CACHE_EXTRA+y][HASH_CACHE_EXTRA+x])
 typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 
-/* #define SIOX_DEBUG  */
-
-typedef struct
-{
-  gfloat l;
-  gfloat a;
-  gfloat b;
-  gint   cardinality;
-} lab;
-
-
 /* A struct that holds SIOX current state */
 struct _SioxState
 {
   TileManager  *pixels;
-  const guchar *colormap;
-  gint          bpp;
-  gint          offset_x;
-  gint          offset_y;
-  gint          x;
-  gint          y;
-  gint          width;
-  gint          height;
-  GHashTable   *cache;
-  lab          *bgsig;
-  lab          *fgsig;
-  gint          bgsiglen;
-  gint          fgsiglen;
-  gint          xsbpp;
 };
-
-/* A struct that holds the classification result */
-typedef struct
-{
-  gfloat bgdist;
-  gfloat fgdist;
-} classresult;
-
-
-static void
-siox_cache_entry_free (gpointer entry)
-{
-  g_slice_free (classresult, entry);
-}
 
 /* Progressbar update callback */
 static inline void
@@ -272,56 +227,6 @@ static void debug_cache (const char* filename, BigCache cache, int radius)
 }
 #endif
 
-/*  assumes that lab starts with an array of floats (l,a,b)  */
-#define CURRENT_VALUE(points, i, dim) (((const gfloat *) (points + i))[dim])
-
-/* squared euclidean distance */
-static inline float
-euklid (const lab *p,
-        const lab *q)
-{
-  return (SQR (p->l - q->l) + SQR (p->a - q->a) + SQR (p->b - q->b));
-}
-
-/* a struct that contains information about a blob */
-struct blob
-{
-  gint     seedx;
-  gint     seedy;
-  gint     size;
-  gboolean mustkeep;
-};
-
-/* Creates a key for the hashtable from a given pixel color value */
-static inline gint
-create_key (const guchar *src,
-            gint          bpp,
-            const guchar *colormap)
-{
-  switch (bpp)
-    {
-    case 3:                     /* RGB  */
-    case 4:                     /* RGBA */
-      return (src[RED] << 16 | src[GREEN] << 8 | src[BLUE]);
-    case 2:
-    case 1:
-      if (colormap)             /* INDEXED(A) */
-        {
-          gint i = *src * 3;
-
-          return (colormap[i + RED]   << 16 |
-                  colormap[i + GREEN] << 8  |
-                  colormap[i + BLUE]);
-        }
-      else                      /* GRAY(A) */
-        {
-          return *src;
-        }
-    default:
-      return 0;
-    }
-}
-
 /**
  * siox_init:
  * @pixels:   the tiles to extract the foreground from
@@ -352,36 +257,9 @@ siox_init (TileManager  *pixels,
   SioxState *state;
 
   g_return_val_if_fail (pixels != NULL, NULL);
-  g_return_val_if_fail (x >= 0, NULL);
-  g_return_val_if_fail (y >= 0, NULL);
-
   state = g_slice_new (SioxState);
 
   state->pixels   = pixels;
-  state->colormap = colormap;
-  state->offset_x = offset_x;
-  state->offset_y = offset_y;
-  state->x        = x;
-  state->y        = y;
-  state->width    = width;
-  state->height   = height;
-  state->bgsig    = NULL;
-  state->fgsig    = NULL;
-  state->bgsiglen = 0;
-  state->fgsiglen = 0;
-  state->bpp      = tile_manager_bpp (pixels);
-
-  state->cache = g_hash_table_new_full (g_direct_hash,
-                                        NULL, NULL,
-                                        (GDestroyNotify) siox_cache_entry_free);
-
-  cpercep_init ();
-
-#ifdef SIOX_DEBUG
-  g_printerr ("siox.c: siox_init (bpp=%d, "
-              "x=%d, y=%d, width=%d, height=%d, offset_x=%d, offset_y=%d)\n",
-              state->bpp, x, y, width, height, offset_x, offset_y);
-#endif
 
   return state;
 }
@@ -466,7 +344,6 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
     }
 }
 
-// TODO only use rgb in certain places
 typedef struct
 {
   guchar color[3];
@@ -704,7 +581,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   if (matches >= 1)
     {
-      gfloat colordiff, lower, upper;
+      gfloat colordiff, current_alpha;
 
       guchar new_fg[3] = {0, 0, 0};
       guchar new_bg[3] = {0, 0, 0};
@@ -774,8 +651,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      gfloat current_alpha;
-      // TODO: check if this projection is right! do we have to use other color values maybe?
       projection (entry->foreground_refined,
                   entry->background_refined,
                   entry->color,
@@ -1468,30 +1343,6 @@ siox_foreground_extract (SioxState          *state,
     }
 }
 
-/*
- // Could set to FALSE, TRUE, but then we get a warning...
-          dst_tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-          g_return_if_fail (dst_tile);
-          pointer = tile_data_pointer (dst_tile, 0, 0);
-
-          for (x = 64; x < 64*2; x++)
-            {
-              for (y = 64; y < 64*2; y++)
-                {
-                  *pointer = big_cache[y * BIG_CACHE_W + x*4];
-                  *(pointer+1) = big_cache[y * BIG_CACHE_W + x*4 + 1];
-                  *(pointer+2) = big_cache[y * BIG_CACHE_W + x*4 + 2];
-                  *(pointer+3) = 255;
-
-                  pointer += 4;
-                }
-            }
-
-          tile_release (dst_tile, TRUE);
-
- */
-
-
 /**
  * siox_done:
  * @state: The state of this tool.
@@ -1503,13 +1354,5 @@ siox_done (SioxState *state)
 {
   g_return_if_fail (state != NULL);
 
-  g_free (state->fgsig);
-  g_free (state->bgsig);
-  g_hash_table_destroy (state->cache);
-
   g_slice_free (SioxState, state);
-
-#ifdef SIOX_DEBUG
-  g_printerr ("siox.c: siox_done()\n");
-#endif
 }
