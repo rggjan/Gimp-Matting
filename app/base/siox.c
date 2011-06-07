@@ -855,8 +855,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
     //g_printf("low_freq_alpha: %f\n", low_freq_alpha);
 
-    entry->alpha = (final_confidence * current_alpha + (1 - final_confidence) * low_freq_alpha)*255;
-    //entry->alpha = low_freq_alpha*255;
+    entry->alpha = (final_confidence * (1-current_alpha) + (1 - final_confidence) * low_freq_alpha)*255;
+    //entry->alpha = (1-current_alpha)*255;
   }
 }
 
