@@ -382,7 +382,7 @@ static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_po
     *alpha_pointer = alpha;
 
   // Normalize, so that it is in the unit cube of colors
-  return PPx * PPx + PPy * PPy + PPz * PPz / (255 * 255);
+  return (PPx * PPx + PPy * PPy + PPz * PPz) / (255. * 255.);
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
@@ -695,7 +695,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->foreground_refined[1] = 0;
       entry->foreground_refined[2] = 0;
       entry->alpha_refined = 255;
-      entry->confidence = 1e-8;
+      entry->confidence = 0;
     }
 }
 
@@ -857,8 +857,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     final_confidence /= meandiff;
     if (final_confidence > 1)
       final_confidence = 1;
-    mp = projection (entry->foreground_refined,
-                     entry->background_refined,
+    mp = projection (entry->foreground,
+                     entry->background,
                      entry->color,
                      &current_alpha);
     final_confidence *= exp(-LAMBDA * sqrt(mp));
