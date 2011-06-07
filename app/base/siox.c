@@ -861,7 +861,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                      entry->background_refined,
                      entry->color,
                      &current_alpha);
-    final_confidence *= exp(-LAMBDA * mp);
+    final_confidence *= exp(-LAMBDA * sqrt(mp));
 
     //g_printf("low_freq_alpha: %f\n", low_freq_alpha);
 
