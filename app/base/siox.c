@@ -603,9 +603,10 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
               // TODO: check if we should use ints here!
               new_fg[index] += floor(current->foreground[index] / matches);
               new_bg[index] += floor(current->background[index] / matches);
-              new_sigma_f_squared += current->sigma_f_squared / matches;
-              new_sigma_b_squared += current->sigma_b_squared / matches;
             }
+
+          new_sigma_f_squared += current->sigma_f_squared / matches;
+          new_sigma_b_squared += current->sigma_b_squared / matches;
         }
 
       colordiff = dist_squared(entry->color[0],
