@@ -651,13 +651,33 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      projection (entry->foreground_refined,
-                  entry->background_refined,
-                  entry->color,
-                  &current_alpha);
+      {
+        gfloat mp;
+        gint i;
+        const float lambda = 10;
+        gboolean same = TRUE;
 
-      entry->alpha_refined = (1 - current_alpha) * 255;
+        mp = projection (entry->foreground_refined,
+                         entry->background_refined,
+                         entry->color,
+                         &current_alpha);
 
+        entry->alpha_refined = (1 - current_alpha) * 255;
+
+        for (i = 0; i < 3; i++)
+          {
+            if (entry->foreground_refined[i] != entry->background_refined[i])
+              {
+                same = FALSE;
+                break;
+              }
+          }
+
+        if (same)
+          entry->confidence = 1e-8;
+        else
+          entry->confidence = exp(-lambda * sqrt(mp));
+      }
     }
   else
     {
@@ -665,26 +685,19 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->foreground_refined[1] = 0;
       entry->foreground_refined[2] = 0;
       entry->alpha_refined = 255;
+      entry->confidence = 1e-8;
     }
-
-  /*
-    if (min == INFINITY)
-      {
-        entry->foreground_refined[0] = 255;
-        entry->foreground_refined[1] = 0;
-        entry->foreground_refined[2] = 0;
-        entry->alpha_refined = 255;
-      }*/
 }
 
 static void inline
 calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
-                        gfloat fq[3], gfloat fd[3], gfloat bq[3], gfloat bd[3],
-                        HashCache hash_cache, BigCache big_cache)
+                        gdouble fq[3], gdouble fd[3], gdouble bq[3], gdouble bd[3],
+                        HashCache hash_cache, BigCache big_cache, gboolean is_middle)
 {
   guchar fg[3], bg[3];
   gint i;
   gfloat alpha, confidence;
+  gdouble weight;
   HashEntry* current;
 
   current = GET_ENTRY(hash_cache, x, y);
@@ -713,26 +726,30 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
           fg[i] = current->foreground_refined[i];
           bg[i] = current->background_refined[i];
         }
-      alpha = current->alpha_refined;
+      alpha = current->alpha_refined / 255.;
       confidence = current->confidence;
     }
 
   // TODO: Special Case for original pixel
-  if (x == 0 && y == 0)
+  if (is_middle)
     {
-      gauss = gauss * confidence;
+      weight = gauss * confidence;
     }
   else
     {
-      gauss = gauss * confidence * ((alpha_orig / 255) - alpha);
+      gfloat diff = alpha_orig - alpha;
+      if (diff < 0)
+        diff = -diff;
+        
+      weight = gauss * confidence * diff;
     }
 
   for (i = 0; i < 3; i++)
     {
-      fq[i] += gauss * alpha * fg[i];
-      fd[i] += gauss * alpha;
-      bq[i] += gauss * (1 - alpha) * bg[i];
-      bd[i] += gauss * (1 - alpha);
+      fq[i] += weight * alpha * fg[i];
+      fd[i] += weight * alpha;
+      bq[i] += weight * (1 - alpha) * bg[i];
+      bd[i] += weight * (1 - alpha);
     }
 }
 
@@ -746,9 +763,10 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
   gint i;
 
   gint xdiff, ydiff;
-  gfloat fq[3] = {0, 0, 0}, fd[3] = {0, 0, 0}, bq[3] = {0, 0, 0}, bd[3] = {0, 0, 0};
-
-  HashEntry *current;
+  gdouble fq[3] = {0, 0, 0};
+  gdouble fd[3] = {0, 0, 0};
+  gdouble bq[3] = {0, 0, 0};
+  gdouble bd[3] = {0, 0, 0};
 
   // Load coordinates from entry
   pos_x = entry->this.coords.x;
@@ -774,19 +792,12 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     {
       for (xdiff = -6; xdiff <= 6; xdiff++)
         {
-          guchar alpha_refined;
-
-          current = GET_ENTRY(hash_cache, pos_x + xdiff, pos_y + ydiff);
-          if (current)
-            alpha_refined = current->alpha_refined;
-          else
-            alpha_refined = 0;
-
           calculate_final_colors (GAUSS(xdiff, ydiff),
                                   pos_x + xdiff, pos_y + ydiff,
-                                  alpha_refined,
+                                  entry->alpha_refined/255.,
                                   fq, fd, bq, bd,
-                                  hash_cache, big_cache);
+                                  hash_cache, big_cache,
+                                  xdiff == 0 && ydiff == 0);
         }
     }
 
@@ -795,6 +806,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->foreground[i] = fq[i] / fd[i];
       entry->background[i] = bq[i] / fd[i];
     }
+
+  entry->alpha = entry->alpha_refined;
 }
 
 static void inline
