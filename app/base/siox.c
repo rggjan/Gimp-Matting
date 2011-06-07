@@ -692,6 +692,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 static void inline
 calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
                         gdouble fq[3], gdouble fd[3], gdouble bq[3], gdouble bd[3],
+                        gdouble *meandiff_q, gdouble *meandiff_d,
                         HashCache hash_cache, BigCache big_cache, gboolean is_middle)
 {
   guchar fg[3], bg[3];
@@ -721,6 +722,7 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
     }
   else
     {
+      gfloat diff_weight;
       for (i = 0; i < 3; i++)
         {
           fg[i] = current->foreground_refined[i];
@@ -728,6 +730,16 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
         }
       alpha = current->alpha_refined / 255.;
       confidence = current->confidence;
+
+      diff_weight = alpha * (1 - alpha) * confidence;
+      *meandiff_d += diff_weight;
+      *meandiff_q += diff_weight * sqrt(dist_squared(
+                                         current->foreground_refined[0],
+                                         current->foreground_refined[1],
+                                         current->foreground_refined[2],
+                                         current->background_refined[0],
+                                         current->background_refined[1],
+                                         current->background_refined[2]));
     }
 
   // TODO: Special Case for original pixel
@@ -740,7 +752,7 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
       gfloat diff = alpha_orig - alpha;
       if (diff < 0)
         diff = -diff;
-        
+
       weight = gauss * confidence * diff;
     }
 
@@ -768,6 +780,9 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
   gdouble bq[3] = {0, 0, 0};
   gdouble bd[3] = {0, 0, 0};
 
+  gdouble meandiff_q = 0;
+  gdouble meandiff_d = 0;
+
   // Load coordinates from entry
   pos_x = entry->this.coords.x;
   pos_y = entry->this.coords.y;
@@ -794,8 +809,9 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
         {
           calculate_final_colors (GAUSS(xdiff, ydiff),
                                   pos_x + xdiff, pos_y + ydiff,
-                                  entry->alpha_refined/255.,
+                                  entry->alpha_refined / 255.,
                                   fq, fd, bq, bd,
+                                  &meandiff_q, &meandiff_d,
                                   hash_cache, big_cache,
                                   xdiff == 0 && ydiff == 0);
         }
