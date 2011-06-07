@@ -1045,10 +1045,8 @@ check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* re
       color_distance_sum = 0;
       for (i = 0; i < 3; i++)
         {
-          color_distance = color[i] -
-                           GET_PIXEL (big_cache, x, y, i);
-          color_distance_sum +=
-            color_distance * color_distance;
+          color_distance = (gint)color[i] - GET_PIXEL (big_cache, x, y, i);
+          color_distance_sum += color_distance * color_distance;
         }
 
       if (color_distance_sum < MATTING_SQUARED_COLOR_DISTANCE)
@@ -1065,42 +1063,34 @@ static inline void
 search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
 {
   guchar color[3];
-  gint   i;
-  gint   radius;
-  gint   n;
-
-  guchar alpha;
+  gint   i, radius, n, alpha;
 
   alpha = GET_PIXEL (big_cache, x, y, 3);
-  if (alpha != 128)
+  if (alpha == 128)
     {
-      *result = alpha;
-      return;
-    }
-
-  for (i = 0; i < 3; i++)
-    {
-      color[i] = GET_PIXEL (big_cache, x, y, i);
-    }
-
-  for (radius = 0; radius <= SEARCH_RADIUS; radius++)
-    {
-      for (n = -radius; n < radius; n++)
+      for (i = 0; i < 3; i++)
         {
-          if (check_closeness (color, big_cache, x + radius, y + n, result))
-            return;
+          color[i] = GET_PIXEL (big_cache, x, y, i);
+        }
 
-          if (check_closeness (color, big_cache, x - radius, y + n, result))
-            return;
+      for (radius = 0; radius <= SEARCH_RADIUS; radius++)
+        {
+          for (n = -radius; n < radius; n++)
+            {
+              if (check_closeness (color, big_cache, x + radius, y + n, result))
+                return;
 
-          if (check_closeness (color, big_cache, x + n, y + radius, result))
-            return;
+              if (check_closeness (color, big_cache, x - radius, y + n, result))
+                return;
 
-          if (check_closeness (color, big_cache, x + n, y - radius, result))
-            return;
+              if (check_closeness (color, big_cache, x + n, y + radius, result))
+                return;
+
+              if (check_closeness (color, big_cache, x + n, y - radius, result))
+                return;
+            }
         }
     }
-
   *result = 128;
 }
 
@@ -1128,9 +1118,9 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
  * the mask are done outside this rectangle.
  */
 void
-siox_foreground_extract (SioxState          *state,
+siox_foreground_extract (SioxState          * state,
                          SioxRefinementType  refinement,
-                         TileManager        *mask,
+                         TileManager        * mask,
                          gint                x1,
                          gint                y1,
                          gint                x2,
@@ -1140,18 +1130,15 @@ siox_foreground_extract (SioxState          *state,
                          gboolean            multiblob,
                          SioxProgressFunc    progress_callback,
                          gpointer            progress_data,
-                         TileManager        *result_layer,
-                         TileManager        *working_layer)
+                         TileManager        * result_layer,
+                         TileManager        * working_layer)
 {
-  //gint         width, height;
   BigCache     big_cache;
   gint         tiles_x, tiles_y;
   Tile        *tile;
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-  //gpointer     foreach_args[5];
-  //gint         loaded_tile_x, loaded_tile_y;
 
   gboolean     unknown;
 
@@ -1350,7 +1337,7 @@ siox_foreground_extract (SioxState          *state,
  * Frees the memory assciated with the state.
  */
 void
-siox_done (SioxState *state)
+siox_done (SioxState * state)
 {
   g_return_if_fail (state != NULL);
 
