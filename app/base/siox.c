@@ -348,7 +348,6 @@ typedef struct
   guchar color[3];
   gboolean found;
   gint distance;
-  gfloat gradient;
   gint x;
   gint y;
 } SearchStructure;
@@ -880,6 +879,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   gint tx, ty;
   gint xdiff, ydiff;
   gfloat min_gradients[2] = {INFINITY, INFINITY};
+  gfloat gradients[4] = {0, 0, 0, 0};
 
   gint direction, toggle, distance;
 
@@ -899,7 +899,6 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       for (direction = 0; direction < 4; direction++)
         {
           found[toggle][direction].found = FALSE;
-          found[toggle][direction].gradient = 0;
         }
     }
 
@@ -972,26 +971,25 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
               b = GET_PIXEL (big_cache, xtmp, ytmp, 2);
               a = GET_PIXEL (big_cache, xtmp, ytmp, 3);
 
+              gradients[direction] += sqrt(dist_squared(prevval[direction][0],
+                                          prevval[direction][1],
+                                          prevval[direction][2],
+                                          r, g, b));
+
+              prevval[direction][0] = r;
+              prevval[direction][1] = g;
+              prevval[direction][2] = b;
+
               // check if it's foreground or background, depending on alpha
               // toggle = 0 equals foreground
               for (toggle = 0; toggle < 2; toggle++)
                 {
-
-                  // add gradient distance
-                  if (!found[toggle][direction].found)
-                    {
-                      // TODO: Check if value is initialized to zero
-                      // TODO: Is thir correct? I think we must use sobel...
-                      found[toggle][direction].gradient += sqrt ((prevval[direction][0] - r) * (prevval[direction][0] - r)
-                                                           + (prevval[direction][1] - g) * (prevval[direction][1] - g)
-                                                           + (prevval[direction][2] - b) * (prevval[direction][2] - b));
-                    }
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
                     {
-                      if (found[toggle][direction].gradient < min_gradients[toggle])
-                        min_gradients[toggle] = found[toggle][direction].gradient;
-                        
+                      if (gradients[direction] < min_gradients[toggle])
+                        min_gradients[toggle] = gradients[direction];
+
                       found[toggle][direction].color[0] = r;
                       found[toggle][direction].color[1] = g;
                       found[toggle][direction].color[2] = b;
