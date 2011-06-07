@@ -457,7 +457,7 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
         {
           // TODO: got a SEGFAULT once!!!
           // TODO check borders
-          if (GET_PIXEL (big_cache, x, y, 3) == my_alpha)
+          if (GET_PIXEL (big_cache, x + xi, y + yi, 3) == my_alpha)
             {
               sum += dist_squared(GET_PIXEL (big_cache, x + xi, y + yi, 0),
                                   GET_PIXEL (big_cache, x + xi, y + yi, 1),
