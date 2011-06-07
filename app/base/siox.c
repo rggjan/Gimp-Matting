@@ -556,13 +556,23 @@ objective_function (SearchStructure *fg,
 
 // searches for known regions for a given unknown pixel in a hash table
 
+static inline gfloat dist_squared(guchar x1, guchar y1, guchar z1, guchar x2, guchar y2, guchar z2)
+{
+  gint diff_x = (gint)x1 - (gint)x2;
+  gint diff_y = (gint)y1 - (gint)y2;
+  gint diff_z = (gint)z1 - (gint)z2;
+
+  return (gfloat) (diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
+}
 
 static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cache)
 {
   gint yi;
   gint xi;
+  guchar my_alpha = GET_PIXEL (big_cache, x, y, 3);
 
   gfloat sum = 0;
+  gint num_found = 0;
 
   for (yi = -2; yi <= 2; yi++)
     {
@@ -570,15 +580,21 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
         {
           // TODO: got a SEGFAULT once!!!
           // TODO check borders
-          gfloat diffr = GET_PIXEL (big_cache, x + xi, y + yi, 0) - P[0];
-          gfloat diffg = GET_PIXEL (big_cache, x + xi, y + yi, 1) - P[1];
-          gfloat diffb = GET_PIXEL (big_cache, x + xi, y + yi, 2) - P[2];
+          if (GET_PIXEL (big_cache, x, y, 3) == my_alpha)
+            {
+              sum += dist_squared(GET_PIXEL (big_cache, x + xi, y + yi, 0),
+                                  GET_PIXEL (big_cache, x + xi, y + yi, 1),
+                                  GET_PIXEL (big_cache, x + xi, y + yi, 2),
+                                  P[0],
+                                  P[1],
+                                  P[2]);
 
-          sum += diffr * diffr + diffg * diffg + diffb * diffb;
+              num_found++;
+            }
         }
     }
 
-  return sum / 25;
+  return sum / num_found;
 }
 
 typedef struct
@@ -697,6 +713,8 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
       gint index;
 
+      // TODO check if we have to treat all colors in unit cube
+
       matches = matches > 3 ? 3 : matches;
 
       for (num = 0; num < matches; num++)
@@ -712,11 +730,13 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      colordiff = 0;
-      for (index = 0; index < 3; index++)
-        {
-          colordiff += (((float)entry->color[index]) - new_fg[index]) * (((float)entry->color[index]) - new_fg[index]);
-        }
+      colordiff = dist_squared(entry->color[0],
+                               entry->color[1],
+                               entry->color[2],
+                               new_fg[0],
+                               new_fg[1],
+                               new_fg[2]);
+
       if (colordiff > new_sigma_f_squared)
         {
           for (index = 0; index < 3; index++)
@@ -732,11 +752,13 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      colordiff = 0;
-      for (index = 0; index < 3; index++)
-        {
-          colordiff += (((float)entry->color[index]) - new_bg[index]) * (((float)entry->color[index]) - new_bg[index]);
-        }
+      colordiff = dist_squared(entry->color[0],
+                               entry->color[1],
+                               entry->color[2],
+                               new_bg[0],
+                               new_bg[1],
+                               new_bg[2]);
+
       if (colordiff > new_sigma_b_squared)
         {
           for (index = 0; index < 3; index++)
@@ -752,37 +774,15 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      lower = 0;
-      upper = 0;
-      for (index = 0; index < 3; index++)
-        {
-          gint diff = entry->foreground_refined[index];
-          diff -= entry->background_refined[index];
-          lower += diff * diff;
-        }
+      gfloat current_alpha;
+      // TODO: check if this projection is right! do we have to use other color values maybe?
+      projection (entry->foreground_refined,
+                  entry->background_refined,
+                  entry->color,
+                  &current_alpha);
 
-      for (index = 0; index < 3; index++)
-        {
-          gint first_diff, second_diff;
-          first_diff = entry->color[index];
-          first_diff -= entry->background_refined[index];
+      entry->alpha_refined = (1 - current_alpha) * 255;
 
-          second_diff = entry->foreground_refined[index];
-          second_diff -= entry->background_refined[index];
-          upper += first_diff * second_diff;
-        }
-
-      {
-        gint alpha_ref = 255 * upper / lower;
-        alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
-        entry->alpha_refined = (guchar) alpha_ref;
-      }
-
-      //test for best three pixels
-      //entry->foreground_refined[0] = new_fg[0];
-      //entry->foreground_refined[1] = new_fg[1];
-      //entry->foreground_refined[2] = new_fg[2];
-      //entry->alpha_refined = entry->alpha;*/
     }
   else
     {
