@@ -658,8 +658,8 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         gint i;
         gboolean same = TRUE;
 
-        mp = projection (entry->foreground_refined,
-                         entry->background_refined,
+        mp = projection (new_fg,
+                         new_bg,
                          entry->color,
                          &current_alpha);
 
@@ -675,9 +675,18 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
           }
 
         if (same)
-          entry->confidence = 1e-8;
+          {
+            entry->confidence = 1e-8;
+          }
         else
-          entry->confidence = exp(-LAMBDA * sqrt(mp));
+          {
+            mp = projection (entry->foreground_refined,
+                             entry->background_refined,
+                             entry->color,
+                             NULL);
+
+            entry->confidence = exp(-LAMBDA * sqrt(mp));
+          }
       }
     }
   else
