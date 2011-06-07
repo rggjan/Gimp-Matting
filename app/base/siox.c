@@ -53,13 +53,14 @@
 #include "siox.h"
 
 //#define IMAGE_DEBUG_PPM
+//#define DEBUG_EXTENSION
+#define DEBUG_PREDEFINED_MASK
+#define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
 #include "stdlib.h"
 #endif
-
-//#define DEBUG_EXTENSION
 
 #define SEARCH_RADIUS 10
 #define MATTING_SQUARED_COLOR_DISTANCE 25
@@ -119,6 +120,7 @@ struct HashEntry_
 
 typedef struct HashEntry_ HashEntry;
 
+// TODO should be 300*6/64, actually...
 #define BIG_CACHE_CHANNELS 4
 #define BIG_CACHE_RADIUS 3
 #define BIG_CACHE_SIZE ((BIG_CACHE_RADIUS*2+1)*64)
@@ -683,7 +685,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   if (matches >= 1)
     {
-      gint i;
+      gfloat colordiff, lower, upper;
 
       guchar new_fg[3] = {0, 0, 0};
       guchar new_bg[3] = {0, 0, 0};
@@ -707,7 +709,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      float colordiff = 0;
+      colordiff = 0;
       for (index = 0; index < 3; index++)
         {
           colordiff += (((float)entry->color[index]) - new_fg[index]) * (((float)entry->color[index]) - new_fg[index]);
@@ -747,8 +749,8 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             }
         }
 
-      gfloat lower = 0;
-      gfloat upper = 0;
+      lower = 0;
+      upper = 0;
       for (index = 0; index < 3; index++)
         {
           gint diff = entry->foreground_refined[index];
@@ -767,9 +769,11 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
           upper += first_diff * second_diff;
         }
 
-      gint alpha_ref = 255 * upper / lower;
-      alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
-      entry->alpha_refined = (guchar) alpha_ref;
+      {
+        gint alpha_ref = 255 * upper / lower;
+        alpha_ref = (alpha_ref > 255 ? 255 : (alpha_ref < 0 ? 0 : alpha_ref));
+        entry->alpha_refined = (guchar) alpha_ref;
+      }
 
       //test for best three pixels
       //entry->foreground_refined[0] = new_fg[0];
@@ -1042,6 +1046,58 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+#ifdef DEBUG_PREDEFINED_MASK
+static void
+read_write_mask (TileManager* mask_layer, gboolean write)
+{
+  PixelRegion mask;
+  PixelRegionIterator *pr;
+  gint row, col;
+  int width, height;
+
+  FILE *fp;
+  char* filename = "mask_out.jj";
+
+  if (write)
+    fp = fopen (filename, "wb"); /* b - binary mode */
+  else
+    fp = fopen (filename, "rb"); /* b - binary mode */
+
+  width = tile_manager_width (mask_layer);
+  height = tile_manager_height(mask_layer);
+
+  pixel_region_init (&mask, mask_layer, 0, 0, width, height, write);
+
+  g_return_if_fail (mask.bytes == 1); // TODO check if indexed etc...
+
+  for (pr = pixel_regions_register (1, &mask);
+       pr != NULL;
+       pr = pixel_regions_process (pr))
+    {
+      guchar *mask_data = mask.data;
+
+      for (row = 0; row < mask.h; row++)
+        {
+          guchar *m = mask_data;
+
+          for (col = 0; col < mask.w; col++, ++m)
+            {
+              if (write)
+                fwrite (m, 1, 1, fp);
+              else
+                fread (m, 1, 1, fp);
+            }
+
+          mask_data += mask.rowstride;
+        }
+    }
+
+  fclose(fp);
+}
+#endif
+
+
+
 #ifdef DEBUG_EXTENSION
 static void
 update_mask (TileManager* result_layer,
@@ -1258,6 +1314,10 @@ siox_foreground_extract (SioxState          *state,
   tiles_y = tile_manager_tiles_per_row (state->pixels);
   //tiles_x = state->pixels->ntile_cols;
   //tiles_y = state->pixels->ntile_rows;
+
+#ifdef DEBUG_PREDEFINED_MASK
+  read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
+#endif
 
   initialize_new_layer (state->pixels, working_layer, mask);
 
