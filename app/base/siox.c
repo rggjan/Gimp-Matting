@@ -50,7 +50,7 @@
 
 //#define DEBUG_PHASE1
 //#define DEBUG_PHASE2
-#define DEBUG_PHASE3
+//#define DEBUG_PHASE3
 
 #define DEBUG_PREDEFINED_MASK
 #define DEBUG_PREDEFINED_MASK_WRITE FALSE
@@ -62,27 +62,6 @@
 
 #define SEARCH_RADIUS 10
 #define MATTING_SQUARED_COLOR_DISTANCE 25
-
-/* Thresholds in the mask:
- *   pixels < SIOX_LOW  are known background
- *   pixels > SIOX_HIGH are known foreground
- */
-#define SIOX_LOW  1
-#define SIOX_HIGH 254
-
-/* When clustering:
- *   use LAB for color images (3 dims),
- *   use L only for grayscale images (1 dim)
- */
-#define SIOX_COLOR_DIMS 3
-#define SIOX_GRAY_DIMS  2
-
-/* For findmaxblob:
- * Find all blobs with area not smaller than sizefactor of biggest blob
- * CHECKME: Should the user decide this with a slider?
- */
-#define MULTIBLOB_DEFAULT_SIZEFACTOR 4
-#define MULTIBLOB_ONE_BLOB_ONLY      0
 
 const float gauss[13][13] = {1.7102e-06, 8.0986e-06, 2.8906e-05, 7.7761e-05, 0.00015767, 0.00024095, 0.00027754, 0.00024095, 0.00015767, 7.7761e-05, 2.8906e-05, 8.0986e-06, 1.7102e-06,
                              8.0986e-06, 3.8351e-05, 0.00013688, 0.00036824, 0.00074664, 0.001141, 0.0013143, 0.001141, 0.00074664, 0.00036824, 0.00013688, 3.8351e-05, 8.0986e-06,
