@@ -50,6 +50,7 @@
 
 //#define DEBUG_PHASE1
 //#define DEBUG_PHASE2
+#define DEBUG_PHASE3
 
 #define DEBUG_PREDEFINED_MASK
 #define DEBUG_PREDEFINED_MASK_WRITE FALSE
@@ -1422,7 +1423,6 @@ siox_foreground_extract (SioxState          * state,
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
   }
-#endif
 
 #ifndef DEBUG_PHASE3
   // Phase 4, get final color values
@@ -1440,6 +1440,7 @@ siox_foreground_extract (SioxState          * state,
         current = g_hash_table_lookup (unknown_hash, &(current->next));
       }
   }
+#endif
 #endif
 
   // Last phase, fill values from hash back into result layer
@@ -1469,16 +1470,16 @@ siox_foreground_extract (SioxState          * state,
 
                   if (current != NULL)
                     {
-#ifndef DEBUG_PHASE2
-                      pointer[0] = current->foreground_refined[0];
-                      pointer[1] = current->foreground_refined[1];
-                      pointer[2] = current->foreground_refined[2];
-                      pointer[3] = current->alpha_refined;
-#else
+#ifdef DEBUG_PHASE2
                       pointer[0] = current->foreground[0];
                       pointer[1] = current->foreground[1];
                       pointer[2] = current->foreground[2];
                       pointer[3] = current->alpha;
+#else
+                      pointer[0] = current->foreground_refined[0];
+                      pointer[1] = current->foreground_refined[1];
+                      pointer[2] = current->foreground_refined[2];
+                      pointer[3] = current->alpha_refined;
 #endif
                       //pointer[3] = 255;
                     }
