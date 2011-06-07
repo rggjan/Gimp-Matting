@@ -60,8 +60,9 @@
 #include "stdlib.h"
 #endif
 
-#define SEARCH_RADIUS 10
-#define MATTING_SQUARED_COLOR_DISTANCE 25
+#define LAMBDA (10)
+#define SEARCH_RADIUS (10)
+#define MATTING_SQUARED_COLOR_DISTANCE (25)
 
 const gfloat gauss[13][13] = {{1.7102e-06, 8.0986e-06, 2.8906e-05, 7.7761e-05, 0.00015767, 0.00024095, 0.00027754, 0.00024095, 0.00015767, 7.7761e-05, 2.8906e-05, 8.0986e-06, 1.7102e-06},
   {8.0986e-06, 3.8351e-05, 0.00013688, 0.00036824, 0.00074664, 0.001141, 0.0013143, 0.001141, 0.00074664, 0.00036824, 0.00013688, 3.8351e-05, 8.0986e-06},
@@ -654,7 +655,6 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
       {
         gfloat mp;
         gint i;
-        const float lambda = 10;
         gboolean same = TRUE;
 
         mp = projection (entry->foreground_refined,
@@ -676,7 +676,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         if (same)
           entry->confidence = 1e-8;
         else
-          entry->confidence = exp(-lambda * sqrt(mp));
+          entry->confidence = exp(-LAMBDA * sqrt(mp));
       }
     }
   else
@@ -693,6 +693,7 @@ static void inline
 calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
                         gdouble fq[3], gdouble fd[3], gdouble bq[3], gdouble bd[3],
                         gdouble *meandiff_q, gdouble *meandiff_d,
+                        gdouble *low_freq_alpha_q, gdouble *low_freq_alpha_d,
                         HashCache hash_cache, BigCache big_cache, gboolean is_middle)
 {
   guchar fg[3], bg[3];
@@ -734,12 +735,12 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
       diff_weight = alpha * (1 - alpha) * confidence;
       *meandiff_d += diff_weight;
       *meandiff_q += diff_weight * sqrt(dist_squared(
-                                         current->foreground_refined[0],
-                                         current->foreground_refined[1],
-                                         current->foreground_refined[2],
-                                         current->background_refined[0],
-                                         current->background_refined[1],
-                                         current->background_refined[2]));
+                                          current->foreground_refined[0],
+                                          current->foreground_refined[1],
+                                          current->foreground_refined[2],
+                                          current->background_refined[0],
+                                          current->background_refined[1],
+                                          current->background_refined[2]));
     }
 
   // TODO: Special Case for original pixel
@@ -758,10 +759,15 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
 
   for (i = 0; i < 3; i++)
     {
+      gdouble low_freq_weight = confidence * gauss + (current == NULL);
+
       fq[i] += weight * alpha * fg[i];
       fd[i] += weight * alpha;
       bq[i] += weight * (1 - alpha) * bg[i];
       bd[i] += weight * (1 - alpha);
+
+      *low_freq_alpha_q += low_freq_weight * alpha;
+      *low_freq_alpha_d += low_freq_weight;
     }
 }
 
@@ -782,6 +788,9 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   gdouble meandiff_q = 0;
   gdouble meandiff_d = 0;
+
+  gdouble low_freq_alpha_q = 0;
+  gdouble low_freq_alpha_d = 0;
 
   // Load coordinates from entry
   pos_x = entry->this.coords.x;
@@ -812,6 +821,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                                   entry->alpha_refined / 255.,
                                   fq, fd, bq, bd,
                                   &meandiff_q, &meandiff_d,
+                                  &low_freq_alpha_q, &low_freq_alpha_d,
                                   hash_cache, big_cache,
                                   xdiff == 0 && ydiff == 0);
         }
@@ -823,7 +833,28 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
       entry->background[i] = bq[i] / fd[i];
     }
 
-  entry->alpha = entry->alpha_refined;
+  {
+    gfloat current_alpha, mp;
+    gdouble meandiff = meandiff_q / meandiff_d;
+    gdouble low_freq_alpha = low_freq_alpha_q / low_freq_alpha_d;
+
+    gdouble final_confidence = sqrt(dist_squared(entry->foreground[0],
+                                    entry->foreground[1],
+                                    entry->foreground[2],
+                                    entry->background[0],
+                                    entry->background[1],
+                                    entry->background[2]));
+    final_confidence /= meandiff;
+    if (final_confidence > 1)
+      final_confidence = 1;
+    mp = projection (entry->foreground_refined,
+                     entry->background_refined,
+                     entry->color,
+                     &current_alpha);
+    final_confidence *= exp(-LAMBDA * mp);
+
+    entry->alpha = final_confidence * current_alpha + (1 - final_confidence) * low_freq_alpha;
+  }
 }
 
 static void inline
