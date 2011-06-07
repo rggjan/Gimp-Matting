@@ -382,7 +382,8 @@ static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_po
   if (alpha_pointer)
     *alpha_pointer = alpha;
 
-  return PPx * PPx + PPy * PPy + PPz * PPz;
+  // Normalize, so that it is in the unit cube of colors
+  return PPx * PPx + PPy * PPy + PPz * PPz / (255 * 255);
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
@@ -1091,7 +1092,7 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
             }
         }
     }
-  *result = 128;
+    *result = alpha;
 }
 
 
@@ -1211,10 +1212,11 @@ siox_foreground_extract (SioxState          * state,
                       HashEntry *entry = g_slice_new (HashEntry);
                       // TODO: free this memory
 
-                      entry->foreground[0] = 255;
-                      entry->foreground[1] = 0;
-                      entry->foreground[2] = 0;
-                      entry->alpha = 255;
+                      // TODO: check if this can really be uncomented
+                      //entry->foreground[0] = 255;
+                      //entry->foreground[1] = 0;
+                      //entry->foreground[2] = 0;
+                      //entry->alpha = 255;
                       entry->pair_found = FALSE;
                       entry->this.coords.x = tx * 64 + x;
                       entry->this.coords.y = ty * 64 + y;
@@ -1227,6 +1229,7 @@ siox_foreground_extract (SioxState          * state,
 
                       if (previous_entry != NULL)
                         previous_entry->next = entry->this;
+
                       previous_entry = entry;
 
                       if(first_entry == NULL)
