@@ -392,10 +392,11 @@ objective_function (SearchStructure *fg,
                     gint x,
                     gint y,
                     BigCache big_cache,
-                    float* best_alpha)
+                    float* best_alpha,
+                    float pfp)
 {
   gint xi, yi;
-  float ap, pfp;
+  float ap;
 
   float Np = 0;
 
@@ -424,7 +425,8 @@ objective_function (SearchStructure *fg,
 
   // TODO calculate pfp, this is a GLOBAL value!!!
   // pfp = bg->gradient / (fg->gradient + bg->gradient);
-  pfp = 0.5;
+  // pfp = 0.5;
+  //pfp = 0.5;
   ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
 
   *best_alpha = finalAlpha;
@@ -877,12 +879,13 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   gint pos_x, pos_y;
   gint tx, ty;
   gint xdiff, ydiff;
+  gfloat min_gradients[2] = {INFINITY, INFINITY};
 
   gint direction, toggle, distance;
 
   SearchStructure found[2][4];
 
-  guchar prevval[3 * 4];
+  guchar prevval[4][3];
   double angle;
   gint permutation[4];
 
@@ -896,6 +899,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
       for (direction = 0; direction < 4; direction++)
         {
           found[toggle][direction].found = FALSE;
+          found[toggle][direction].gradient = 0;
         }
     }
 
@@ -903,9 +907,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   // initialize to original value
   for (distance = 0; distance < 4; distance++)
     {
-      prevval[distance] = entry->color[0];
-      prevval[distance + 1] = entry->color[1];
-      prevval[distance + 2] = entry->color[2];
+      prevval[distance][0] = entry->color[0];
+      prevval[distance][1] = entry->color[1];
+      prevval[distance][2] = entry->color[2];
     }
 
   // Load coordinates from entry
@@ -978,13 +982,16 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                     {
                       // TODO: Check if value is initialized to zero
                       // TODO: Is thir correct? I think we must use sobel...
-                      found[toggle][direction].gradient += sqrt ((prevval[direction] - r) * (prevval[direction] - r)
-                                                           + (prevval[direction + 1] - g) * (prevval[direction + 1] - g)
-                                                           + (prevval[direction + 2] - b) * (prevval[direction + 2] - b));
+                      found[toggle][direction].gradient += sqrt ((prevval[direction][0] - r) * (prevval[direction][0] - r)
+                                                           + (prevval[direction][1] - g) * (prevval[direction][1] - g)
+                                                           + (prevval[direction][2] - b) * (prevval[direction][2] - b));
                     }
                   if (a == (toggle == 0 ? 255 : 0) &&
                       !found[toggle][direction].found)
                     {
+                      if (found[toggle][direction].gradient < min_gradients[toggle])
+                        min_gradients[toggle] = found[toggle][direction].gradient;
+                        
                       found[toggle][direction].color[0] = r;
                       found[toggle][direction].color[1] = g;
                       found[toggle][direction].color[2] = b;
@@ -1006,6 +1013,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
     gint foreground_direction, background_direction;
 
     gfloat best_alpha = -1;
+    gfloat pfp = min_gradients[1] / (min_gradients[0] + min_gradients[1]);
 
     // calculate energy function for every fg/bg pair
     for (foreground_direction = 0; foreground_direction < 4; foreground_direction++)
@@ -1023,7 +1031,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                                       pos_x,
                                                       pos_y,
                                                       big_cache,
-                                                      &current_alpha);
+                                                      &current_alpha,
+                                                      pfp);
                     if (temp < min || min < 0)
                       {
                         best_alpha = current_alpha;
