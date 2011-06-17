@@ -868,7 +868,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
     //g_printf("low_freq_alpha: %f\n", low_freq_alpha);
 
-    entry->alpha = (final_confidence * (1-current_alpha) + (1 - final_confidence) * low_freq_alpha)*255;
+    entry->alpha = (final_confidence * (1 - current_alpha) + (1 - final_confidence) * low_freq_alpha) * 255;
     //entry->alpha = (1-current_alpha)*255;
   }
 }
@@ -974,9 +974,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
               a = GET_PIXEL (big_cache, xtmp, ytmp, 3);
 
               gradients[direction] += sqrt(dist_squared(prevval[direction][0],
-                                          prevval[direction][1],
-                                          prevval[direction][2],
-                                          r, g, b));
+                                           prevval[direction][1],
+                                           prevval[direction][2],
+                                           r, g, b));
 
               prevval[direction][0] = r;
               prevval[direction][1] = g;
@@ -1175,8 +1175,6 @@ read_write_mask (TileManager* mask_layer, gboolean write)
   fclose(fp);
 }
 #endif
-
-
 
 static void
 update_mask (TileManager* result_layer,
@@ -1547,7 +1545,7 @@ siox_foreground_extract (SioxState          * state,
     }
 #endif // DEBUG_PHASE1
 
-  update_mask (result_layer, mask);    
+  update_mask (result_layer, mask);
 }
 
 /**
