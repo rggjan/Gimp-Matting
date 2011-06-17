@@ -50,10 +50,12 @@
 
 //#define DEBUG_PHASE1
 //#define DEBUG_PHASE2
-//#define DEBUG_PHASE3
+#define DEBUG_PHASE3
 
-#define DEBUG_PREDEFINED_MASK
-#define DEBUG_PREDEFINED_MASK_WRITE FALSE
+// TRUE for writing
+// FALSE for reading
+// undefined for normal mode
+// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -1124,7 +1126,7 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
-#ifdef DEBUG_PREDEFINED_MASK
+#ifdef DEBUG_PREDEFINED_MASK_WRITE
 static void
 read_write_mask (TileManager* mask_layer, gboolean write)
 {
@@ -1176,7 +1178,6 @@ read_write_mask (TileManager* mask_layer, gboolean write)
 
 
 
-#ifdef DEBUG_EXTENSION
 static void
 update_mask (TileManager* result_layer,
              TileManager* mask_layer)
@@ -1214,9 +1215,9 @@ update_mask (TileManager* result_layer,
                   mask != MATTING_USER_BACKGROUND)
                 {
                   guchar result = r[3];
-                  if (result == 255)
+                  if (result > 128)
                     m[0] = MATTING_ALGO_FOREGROUND;
-                  else if (result == 0)
+                  else if (result < 128)
                     m[0] = MATTING_ALGO_BACKGROUND;
                   else
                     m[0] = MATTING_ALGO_UNDEFINED;
@@ -1228,7 +1229,6 @@ update_mask (TileManager* result_layer,
         }
     }
 }
-#endif
 
 static inline gboolean
 check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* result)
@@ -1364,7 +1364,7 @@ siox_foreground_extract (SioxState          * state,
   tiles_x = tile_manager_tiles_per_col (state->pixels);
   tiles_y = tile_manager_tiles_per_row (state->pixels);
 
-#ifdef DEBUG_PREDEFINED_MASK
+#ifdef DEBUG_PREDEFINED_MASK_WRITE
   read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
 #endif
 
@@ -1448,10 +1448,7 @@ siox_foreground_extract (SioxState          * state,
   // End the list with a null pointer
   previous_entry->next.value = 0;
 
-#ifdef DEBUG_PHASE1
-  update_mask (result_layer, mask);
-  return;
-#endif
+#ifndef DEBUG_PHASE1
 
   // Phase 2, loop over values in hash and fill them in
   {
@@ -1548,6 +1545,9 @@ siox_foreground_extract (SioxState          * state,
             }
         }
     }
+#endif // DEBUG_PHASE1
+
+  update_mask (result_layer, mask);    
 }
 
 /**
