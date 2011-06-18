@@ -1452,10 +1452,11 @@ siox_foreground_extract (SioxState          * state,
   previous_entry->next.value = 0;
 
   g_printf("Unknown pixels: %f\n", (float) unknown_pixels / total_pixels);
-  if ((float) unknown_pixels / total_pixels > 0.3) {
-    update_mask (result_layer, mask);    
-    return;
-  }
+  if ((float) unknown_pixels / total_pixels > 0.3)
+    {
+      update_mask (result_layer, mask);
+      return;
+    }
 
 #ifndef DEBUG_PHASE1
 
