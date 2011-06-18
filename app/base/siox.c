@@ -867,6 +867,10 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     final_confidence *= exp(-LAMBDA * sqrt(mp));
 
     //g_printf("low_freq_alpha: %f\n", low_freq_alpha);
+    
+    // TODO here can be NANS!!!
+    if (!(final_confidence <= 1 || final_confidence >= 0))
+      g_printf("Problem!: final_confidence: %f\n", final_confidence);
 
     entry->alpha = (final_confidence * (1 - current_alpha) + (1 - final_confidence) * low_freq_alpha) * 255;
     //entry->alpha = (1-current_alpha)*255;
