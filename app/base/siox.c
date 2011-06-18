@@ -1337,6 +1337,7 @@ siox_foreground_extract (SioxState          * state,
 
   gint         tx, ty, x, y;
   guchar      *pointer;
+  gint         unknown_pixels = 0, total_pixels = 0;
 
   gboolean     unknown;
 
@@ -1403,10 +1404,13 @@ siox_foreground_extract (SioxState          * state,
                   search_for_neighbours (big_cache, x, y, pointer + 3);
 
                   unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
+                  total_pixels++;
 
                   if (unknown)
                     {
                       HashEntry *entry = g_slice_new (HashEntry);
+
+                      unknown_pixels++;
                       // TODO: free this memory
 
                       // TODO: check if this can really be uncomented
@@ -1445,6 +1449,12 @@ siox_foreground_extract (SioxState          * state,
 
   // End the list with a null pointer
   previous_entry->next.value = 0;
+
+  g_printf("Unknown pixels: %f\n", (float) unknown_pixels / total_pixels);
+  if ((float) unknown_pixels / total_pixels > 0.3) {
+    update_mask (result_layer, mask);    
+    return;
+  }
 
 #ifndef DEBUG_PHASE1
 
