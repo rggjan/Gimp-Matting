@@ -55,7 +55,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
+#define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
