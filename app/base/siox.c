@@ -944,7 +944,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   // TODO check if this really works!
   angle = ((pos_x % 3) + (pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
 
-  for (distance = 6; distance < 3 * 64; distance += 6)
+  // TODO plug in 6 here?
+  for (distance = 1; distance < 3 * 64; distance += 1)
     {
       // TODO precalculate these!
       xdiff = cos (angle) * distance;
