@@ -843,7 +843,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
   for (i = 0; i < 3; i++)
     {
       entry->foreground[i] = fq[i] / fd[i];
-      entry->background[i] = bq[i] / fd[i];
+      entry->background[i] = bq[i] / bd[i];
     }
 
   {
