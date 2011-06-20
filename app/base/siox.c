@@ -49,8 +49,11 @@
 //#define IMAGE_DEBUG_PPM
 
 //#define DEBUG_PHASE1
-//#define DEBUG_PHASE2
-#define DEBUG_PHASE3
+#define DEBUG_PHASE2
+//#define DEBUG_PHASE3
+
+// 1 = foreground, 2 = background, 3 = alpha
+#define DEBUG_SHOW_SPECIAL 2
 
 // TRUE for writing
 // FALSE for reading
@@ -867,7 +870,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     final_confidence *= exp(-LAMBDA * sqrt(mp));
 
     //g_printf("low_freq_alpha: %f\n", low_freq_alpha);
-    
+
     // TODO here can be NANS!!!
     if (!(final_confidence <= 1 || final_confidence >= 0))
       g_printf("Problem!: final_confidence: %f\n", final_confidence);
@@ -1269,29 +1272,37 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
   gint   i, radius, n, alpha;
 
   alpha = GET_PIXEL (big_cache, x, y, 3);
-  if (alpha == 128)
+
+  if (alpha != 128)
     {
-      for (i = 0; i < 3; i++)
+#ifdef DEBUG_SHOW_SPECIAL
+      *result = 0;
+#else
+      *result = alpha;
+#endif
+      return;
+    }
+
+  for (i = 0; i < 3; i++)
+    {
+      color[i] = GET_PIXEL (big_cache, x, y, i);
+    }
+
+  for (radius = 0; radius <= SEARCH_RADIUS; radius++)
+    {
+      for (n = -radius; n < radius; n++)
         {
-          color[i] = GET_PIXEL (big_cache, x, y, i);
-        }
+          if (check_closeness (color, big_cache, x + radius, y + n, result))
+            return;
 
-      for (radius = 0; radius <= SEARCH_RADIUS; radius++)
-        {
-          for (n = -radius; n < radius; n++)
-            {
-              if (check_closeness (color, big_cache, x + radius, y + n, result))
-                return;
+          if (check_closeness (color, big_cache, x - radius, y + n, result))
+            return;
 
-              if (check_closeness (color, big_cache, x - radius, y + n, result))
-                return;
+          if (check_closeness (color, big_cache, x + n, y + radius, result))
+            return;
 
-              if (check_closeness (color, big_cache, x + n, y + radius, result))
-                return;
-
-              if (check_closeness (color, big_cache, x + n, y - radius, result))
-                return;
-            }
+          if (check_closeness (color, big_cache, x + n, y - radius, result))
+            return;
         }
     }
   *result = alpha;
@@ -1546,14 +1557,58 @@ siox_foreground_extract (SioxState          * state,
                       pointer[0] = current->foreground_refined[0];
                       pointer[1] = current->foreground_refined[1];
                       pointer[2] = current->foreground_refined[2];
+#ifdef DEBUG_SHOW_SPECIAL
+                      if (DEBUG_SHOW_SPECIAL == 1)
+                        {
+                          pointer[0] = current->foreground_refined[0];
+                          pointer[1] = current->foreground_refined[1];
+                          pointer[2] = current->foreground_refined[2];
+                        }
+                      else if (DEBUG_SHOW_SPECIAL == 2)
+                        {
+                          pointer[0] = current->background_refined[0];
+                          pointer[1] = current->background_refined[1];
+                          pointer[2] = current->background_refined[2];
+                        }
+                      else
+                        {
+                          pointer[0] = current->alpha_refined;
+                          pointer[1] = current->alpha_refined;
+                          pointer[2] = current->alpha_refined;
+                        }
+
+                      pointer[3] = 255;
+#else
                       pointer[3] = current->alpha_refined;
+#endif // DEBUG_SHOW_SPECIAL
 #else
                       pointer[0] = current->foreground[0];
                       pointer[1] = current->foreground[1];
                       pointer[2] = current->foreground[2];
+#ifdef DEBUG_SHOW_SPECIAL
+                      if (DEBUG_SHOW_SPECIAL == 1)
+                        {
+                          pointer[0] = current->foreground[0];
+                          pointer[1] = current->foreground[1];
+                          pointer[2] = current->foreground[2];
+                        }
+                      else if (DEBUG_SHOW_SPECIAL == 2)
+                        {
+                          pointer[0] = current->background[0];
+                          pointer[1] = current->background[1];
+                          pointer[2] = current->background[2];
+                        }
+                      else
+                        {
+                          pointer[0] = current->alpha;
+                          pointer[1] = current->alpha;
+                          pointer[2] = current->alpha;
+                        }
+                      pointer[3] = 255;                        
+#else
                       pointer[3] = current->alpha;
+#endif // DEBUG_SHOW_SPECIAL
 #endif
-                      //pointer[3] = 255;
                     }
                 }
             }
