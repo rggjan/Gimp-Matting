@@ -48,12 +48,12 @@
 
 //#define IMAGE_DEBUG_PPM
 
-//#define DEBUG_PHASE1
-#define DEBUG_PHASE2
+#define DEBUG_PHASE1
+//#define DEBUG_PHASE2
 //#define DEBUG_PHASE3
 
 // 1 = foreground, 2 = background, 3 = alpha
-#define DEBUG_SHOW_SPECIAL 1
+#define DEBUG_SHOW_SPECIAL 3
 
 // TRUE for writing
 // FALSE for reading
@@ -1418,10 +1418,20 @@ siox_foreground_extract (SioxState          * state,
                   unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
                   total_pixels++;
 
+#ifdef DEBUG_SHOW_SPECIAL
+                  if (DEBUG_SHOW_SPECIAL == 3)
+                    {
+                      pointer[0] = 128;
+                      pointer[1] = 128;
+                      pointer[2] = 128;
+                    }
+#endif
                   if (unknown)
                     {
                       HashEntry *entry = g_slice_new (HashEntry);
-
+#ifdef DEBUG_SHOW_SPECIAL
+                      pointer[3] = 255;
+#endif
                       unknown_pixels++;
                       // TODO: free this memory
 
@@ -1450,6 +1460,10 @@ siox_foreground_extract (SioxState          * state,
 
                       g_hash_table_insert (unknown_hash, &(entry->this), entry);
                     }
+#ifdef DEBUG_SHOW_SPECIAL
+                  else
+                    pointer[3] = 0;
+#endif
                 }
             }
 
@@ -1605,7 +1619,9 @@ siox_foreground_extract (SioxState          * state,
                       pointer[3] = current->alpha;
 #endif // DEBUG_SHOW_SPECIAL
 #endif
-                    } else {
+                    }
+                  else
+                    {
 #ifdef DEBUG_SHOW_SPECIAL
                       pointer[3] = 0;
 #endif
