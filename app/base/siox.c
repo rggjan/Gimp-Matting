@@ -53,7 +53,7 @@
 //#define DEBUG_PHASE3
 
 // 1 = foreground, 2 = background, 3 = alpha
-#define DEBUG_SHOW_SPECIAL 2
+#define DEBUG_SHOW_SPECIAL 1
 
 // TRUE for writing
 // FALSE for reading
@@ -949,6 +949,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   // in a 9x9 window, we want to have values in a 90° window
   // TODO check if this really works!
+  // TODO use real position, not inside window!
   angle = ((pos_x % 3) + (pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
 
   for (distance = 6; distance < 3 * 64; distance += 6)
@@ -1274,11 +1275,7 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
 
   if (alpha != 128)
     {
-#ifdef DEBUG_SHOW_SPECIAL
-      *result = 0;
-#else
       *result = alpha;
-#endif
       return;
     }
 
@@ -1603,10 +1600,14 @@ siox_foreground_extract (SioxState          * state,
                           pointer[1] = current->alpha;
                           pointer[2] = current->alpha;
                         }
-                      pointer[3] = 255;                        
+                      pointer[3] = 255;
 #else
                       pointer[3] = current->alpha;
 #endif // DEBUG_SHOW_SPECIAL
+#endif
+                    } else {
+#ifdef DEBUG_SHOW_SPECIAL
+                      pointer[3] = 0;
 #endif
                     }
                 }
