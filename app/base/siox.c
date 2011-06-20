@@ -48,12 +48,12 @@
 
 //#define IMAGE_DEBUG_PPM
 
-#define DEBUG_PHASE1
+//#define DEBUG_PHASE1
 //#define DEBUG_PHASE2
 //#define DEBUG_PHASE3
 
 // 1 = foreground, 2 = background, 3 = alpha
-#define DEBUG_SHOW_SPECIAL 3
+//#define DEBUG_SHOW_SPECIAL 3
 
 // TRUE for writing
 // FALSE for reading
