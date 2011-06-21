@@ -308,7 +308,6 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
                   GET_PIXEL(big_cache, bx, by, 3) = 128;
                 }
             }
-
         }
     }
 }
@@ -861,6 +860,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                      BigCache big_cache, TileManager* layer)
 {
   gint pos_x, pos_y;
+  gint orig_pos_x, orig_pos_y;
   gint tx, ty;
   gint xdiff, ydiff;
   gfloat min_gradients[2] = {INFINITY, INFINITY};
@@ -874,11 +874,6 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   double angle;
   gint permutation[4];
 
-  /*
-  Tile *tile;
-  guchar *pointer;
-  float *pointertemp;
-  */
   for (toggle = 0; toggle < 2; toggle++)
     {
       for (direction = 0; direction < 4; direction++)
@@ -886,7 +881,6 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
           found[toggle][direction].found = FALSE;
         }
     }
-
 
   // initialize to original value
   for (distance = 0; distance < 4; distance++)
@@ -897,19 +891,18 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
     }
 
   // Load coordinates from entry
-  pos_x = entry->this.coords.x;
-  pos_y = entry->this.coords.y;
+  orig_pos_x = entry->this.coords.x;
+  orig_pos_y = entry->this.coords.y;
 
-  tx = pos_x / 64;
-  ty = pos_y / 64;
+  tx = orig_pos_x / 64;
+  ty = orig_pos_y / 64;
 
-  pos_x = pos_x - 64 * tx;
-  pos_y = pos_y - 64 * ty;
+  pos_x = orig_pos_x - 64 * tx;
+  pos_y = orig_pos_y - 64 * ty;
 
   if (*current_tx != tx || *current_ty != ty)
     {
       load_big_cache (layer, big_cache, tx, ty, 3);
-      //g_printf ("Cache loaded! for tiles %i %i\n", tx, ty);
       *current_tx = tx;
       *current_ty = ty;
 
@@ -924,9 +917,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
 
   // in a 9x9 window, we want to have values in a 90° window
-  // TODO check if this really works!
-  // TODO use real position, not inside window!
-  angle = ((pos_x % 3) + (pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
+  angle = ((orig_pos_x % 3) + (orig_pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
 
   for (distance = 6; distance < 3 * 64; distance += 6)
     {
@@ -990,14 +981,16 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
     }
 
   {
-    gfloat min = -1;
+    gfloat min = INFINITY;
     gint minindexf = -1;
     gint minindexb = -1;
 
     gint foreground_direction, background_direction;
 
     gfloat best_alpha = -1;
-    gfloat pfp = min_gradients[1] / (min_gradients[0] + min_gradients[1]);
+    gfloat pfp = 0.5;
+    if (min_gradients[1] > 0 || min_gradients[0] > 0)
+      pfp = min_gradients[1] / (min_gradients[0] + min_gradients[1]);
 
     // calculate energy function for every fg/bg pair
     for (foreground_direction = 0; foreground_direction < 4; foreground_direction++)
@@ -1017,7 +1010,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                                       big_cache,
                                                       &current_alpha,
                                                       pfp);
-                    if (temp < min || min < 0)
+                    if (temp < min)
                       {
                         best_alpha = current_alpha;
                         min = temp;
@@ -1030,7 +1023,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
           }
       }
 
-    if (minindexf != -1 && minindexb != -1 && best_alpha != -1)
+    if (min != INFINITY)
       {
         SearchStructure best_foreground = found[0][minindexf];
         SearchStructure best_background = found[1][minindexb];
@@ -1345,7 +1338,6 @@ siox_foreground_extract (SioxState          * state,
                          TileManager        * working_layer)
 {
   BigCache     big_cache;
-  gint         tiles_x, tiles_y;
   Tile        *tile;
 
   gint         tx, ty, x, y;
@@ -1372,9 +1364,6 @@ siox_foreground_extract (SioxState          * state,
   g_return_if_fail (tile_manager_bpp (state->pixels) == 3);
   g_return_if_fail (tile_manager_bpp (result_layer) == 4);
 
-  tiles_x = tile_manager_tiles_per_col (state->pixels);
-  tiles_y = tile_manager_tiles_per_row (state->pixels);
-
 #ifdef DEBUG_PREDEFINED_MASK_WRITE
   read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
 #endif
@@ -1392,10 +1381,9 @@ siox_foreground_extract (SioxState          * state,
     }
 
   initialize_new_layer (state->pixels, working_layer, mask, x1, y1, x2, y2);
-
-  for (ty = 0; ty < tiles_y; ty++)
+  for (ty = y1/64; ty <= y2/64; ty++)
     {
-      for (tx = 0; tx < tiles_x; tx++)
+      for (tx = x1/64; tx <= x2/64; tx++)
         {
           guint   height_tile;
           guint   width_tile;
