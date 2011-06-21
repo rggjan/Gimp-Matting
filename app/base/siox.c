@@ -1056,23 +1056,23 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   }
 }
 
-
 static void
 initialize_new_layer (TileManager* source_layer,
                       TileManager* destination_layer,
-                      TileManager* mask_layer)
+                      TileManager* mask_layer,
+                      gint x1, gint y1, gint x2, gint y2)
 {
   PixelRegion src, dest, mask;
   PixelRegionIterator *pr;
   gint row, col;
   int width, height;
 
-  width = tile_manager_width (source_layer);
-  height = tile_manager_height(source_layer);
+  width = x2 - x1;
+  height = y2 - y1;
 
-  pixel_region_init (&src, source_layer, 0, 0, width, height, FALSE);
-  pixel_region_init (&dest, destination_layer, 0, 0, width, height, TRUE);
-  pixel_region_init (&mask, mask_layer, 0, 0, width, height, FALSE);
+  pixel_region_init (&src, source_layer, x1, y1, width, height, FALSE);
+  pixel_region_init (&dest, destination_layer, x1, y1, width, height, TRUE);
+  pixel_region_init (&mask, mask_layer, x1, y1, width, height, FALSE);
 
   g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
@@ -1388,9 +1388,10 @@ siox_foreground_extract (SioxState          * state,
         {
           return;
         }
+      state->enough_pixels = TRUE;
     }
 
-  initialize_new_layer (state->pixels, working_layer, mask);
+  initialize_new_layer (state->pixels, working_layer, mask, x1, y1, x2, y2);
 
   for (ty = 0; ty < tiles_y; ty++)
     {
