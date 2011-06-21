@@ -42,7 +42,7 @@ enum
   PROP_CONTIGUOUS,
   PROP_BACKGROUND,
   PROP_STROKE_WIDTH,
-  PROP_SMOOTHNESS,
+  PROP_START_PERCENTAGE,
   PROP_MASK_COLOR,
   PROP_EXPANDED,
   PROP_SENSITIVITY_L,
@@ -99,12 +99,11 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
                                 1, 80, 18,
                                 GIMP_PARAM_STATIC_STRINGS);
 
-  GIMP_CONFIG_INSTALL_PROP_INT (object_class, PROP_SMOOTHNESS,
-                                "smoothness",
-                                N_("Smaller values give a more accurate "
-                                  "selection border but may introduce holes "
-                                  "in the selection"),
-                                0, 8, SIOX_DEFAULT_SMOOTHNESS,
+  GIMP_CONFIG_INSTALL_PROP_INT (object_class, PROP_START_PERCENTAGE,
+                                "start-percentage",
+                                N_("What is the minimum percent of knokwn "
+                                  "pixels to start with the algorithm"),
+                                0, 100, 70,
                                 GIMP_PARAM_STATIC_STRINGS);
 
   GIMP_CONFIG_INSTALL_PROP_ENUM (object_class, PROP_MASK_COLOR,
@@ -169,8 +168,8 @@ gimp_foreground_select_options_set_property (GObject      *object,
       options->stroke_width = g_value_get_int (value);
       break;
 
-    case PROP_SMOOTHNESS:
-      options->smoothness = g_value_get_int (value);
+    case PROP_START_PERCENTAGE:
+      options->start_percentage = g_value_get_int (value);
       break;
 
     case PROP_MASK_COLOR:
@@ -225,8 +224,8 @@ gimp_foreground_select_options_get_property (GObject    *object,
       g_value_set_int (value, options->stroke_width);
       break;
 
-    case PROP_SMOOTHNESS:
-      g_value_set_int (value, options->smoothness);
+    case PROP_START_PERCENTAGE:
+      g_value_set_int (value, options->start_percentage);
       break;
 
     case PROP_MASK_COLOR:
@@ -323,18 +322,18 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
   gtk_box_pack_start (GTK_BOX (inner_frame), scale, FALSE, FALSE, 0);
   gtk_widget_show (scale);
 
-  /*  smoothness  */
+  /*  start_percentage  */
   table = gtk_table_new (2, 3, FALSE);
   gtk_table_set_row_spacings (GTK_TABLE (table), 2);
   gtk_table_set_col_spacings (GTK_TABLE (table), 2);
   gtk_box_pack_start (GTK_BOX (vbox), table, FALSE, FALSE, 0);
   gtk_widget_show (table);
 
-  scale = gimp_prop_hscale_new (config, "smoothness", 0.1, 1.0, 0);
+  scale = gimp_prop_hscale_new (config, "start-percentage", 0.1, 1.0, 0);
   gtk_range_set_update_policy (GTK_RANGE (scale), GTK_UPDATE_DELAYED);
   gtk_scale_set_value_pos (GTK_SCALE (scale), GTK_POS_RIGHT);
   gimp_table_attach_aligned (GTK_TABLE (table), 0, 0,
-                             _("Smoothing:"), 0.0, 0.5, scale, 2, FALSE);
+                             _("Start Percentage:"), 0.0, 0.5, scale, 2, FALSE);
 
   /*  mask color */
   menu = gimp_prop_enum_combo_box_new (config, "mask-color",

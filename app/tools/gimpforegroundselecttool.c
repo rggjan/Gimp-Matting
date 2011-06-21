@@ -669,7 +669,7 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
                                                fg_select->working_layer,
                                                fg_select->state,
                                                fg_select->refinement,
-                                               options->smoothness,
+                                               (float)options->start_percentage/100,
                                                options->sensitivity,
                                                ! options->contiguous,
                                                GIMP_PROGRESS (fg_select));
@@ -914,9 +914,9 @@ gimp_foreground_select_options_notify (GimpForegroundSelectOptions *options,
   if (! fg_select->mask)
     return;
 
-  if (strcmp (pspec->name, "smoothness") == 0)
+  if (strcmp (pspec->name, "start-percentage") == 0)
     {
-      refinement = SIOX_REFINEMENT_CHANGE_SMOOTHNESS;
+      refinement = SIOX_REFINEMENT_CHANGE_START_PERCENTAGE;
     }
   else if (strcmp (pspec->name, "contiguous") == 0)
     {

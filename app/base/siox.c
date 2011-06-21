@@ -1381,7 +1381,7 @@ siox_foreground_extract (SioxState          * state,
                          gint                y1,
                          gint                x2,
                          gint                y2,
-                         gint                smoothness,
+                         gfloat              start_percentage,
                          const gdouble       sensitivity[3],
                          gboolean            multiblob,
                          SioxProgressFunc    progress_callback,
@@ -1411,7 +1411,7 @@ siox_foreground_extract (SioxState          * state,
   g_return_if_fail (x2 > x1 && x2 <= tile_manager_width (mask));
   g_return_if_fail (y1 >= 0);
   g_return_if_fail (y2 > y1 && y2 <= tile_manager_height (mask));
-  g_return_if_fail (smoothness >= 0);
+  g_return_if_fail (start_percentage >= 0 && start_percentage <= 1);
   g_return_if_fail (progress_data == NULL || progress_callback != NULL);
 
   g_return_if_fail (tile_manager_bpp (state->pixels) == 3);
@@ -1428,8 +1428,8 @@ siox_foreground_extract (SioxState          * state,
     {
       gfloat unknown_percent = mask_percent_unknown (mask);
 
-      g_printf("Unknown pixels: %f\n", unknown_percent);
-      if (unknown_percent > 0.3)
+      g_printf("Unknown pixels: %f (%f)\n", unknown_percent, start_percentage);
+      if (unknown_percent > (1-start_percentage))
         {
           return;
         }

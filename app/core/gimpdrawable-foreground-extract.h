@@ -38,7 +38,7 @@ void        gimp_drawable_foreground_extract_siox  (GimpDrawable       *mask,
 						    GimpLayer          *working_layer,
                                                     SioxState          *state,
                                                     SioxRefinementType  refinemane,
-                                                    gint                smoothness,
+                                                    gfloat start_percentage,
                                                     const gdouble       sensitivity[3],
                                                     gboolean            multiblob,
                                                     GimpProgress       *progress);
