@@ -1,24 +1,4 @@
 /*
- * SIOX: Simple Interactive Object Extraction
- *
- * For algorithm documentation refer to:
- * G. Friedland, K. Jantz, L. Knipping, R. Rojas:
- * "Image Segmentation by Uniform Color Clustering
- *  -- Approach and Benchmark Results",
- * Technical Report B-05-07, Department of Computer Science,
- * Freie Universitaet Berlin, June 2005.
- * http://www.inf.fu-berlin.de/inst/pubs/tr-b-05-07.pdf
- *
- * See http://www.siox.org/ for more information.
- *
- * Algorithm idea by Gerald Friedland.
- * This implementation is Copyright (C) 2005
- * by Gerald Friedland <fland@inf.fu-berlin.de>
- * and Kristian Jantz <jantz@inf.fu-berlin.de>
- * and Tobias Lenz <tlenz@inf.fu-berlin.de>.
- *
- * Adapted for GIMP by Sven Neumann <sven@gimp.org>
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
@@ -232,23 +212,6 @@ static void debug_cache (const char* filename, BigCache cache, int radius)
 }
 #endif
 
-/**
- * siox_init:
- * @pixels:   the tiles to extract the foreground from
- * @colormap: colormap in case @pixels are indexed, %NULL otherwise
- * @offset_x: horizontal offset of @pixels with respect to the @mask
- * @offset_y: vertical offset of @pixels with respect to the @mask
- * @x:        horizontal offset into the mask
- * @y:        vertical offset into the mask
- * @width:    width of working area on mask
- * @height:   height of working area on mask
- *
- * Initializes the SIOX segmentator.
- * Creates and returns a SioxState struct that has to be passed to all
- * function calls of this module as it maintaines the state.
- *
-'* Returns: a new siox state structure.
- */
 SioxState *
 siox_init (TileManager  *pixels,
            const guchar *colormap,
@@ -1350,29 +1313,6 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
   *result = alpha;
 }
 
-
-/**
- * siox_foreground_extract:
- * @state:       current state struct as constructed by siox_init
- * @refinement:  #SioxRefinementType
- * @mask:        a mask indicating sure foreground (255), sure background (0)
- *               and undecided regions ([1..254]).
- * @x1:          region of interest
- * @y1:          region of interest
- * @x2:          region of interest
- * @y2:          region of interest
- * @sensitivity: a double array with three entries specifing the accuracy,
- *               a good value is: { 0.64, 1.28, 2.56 }
- * @smoothness:  boundary smoothness (a good value is 3)
- * @multiblob:   allow multiple blobs (true) or only one (false)
- * @progress_callback: a progress callback
- * @progress_data: data passed to @progress_callback
- *
- * Writes the resulting segmentation into @mask. The region of
- * interest as specified using @x1, @y1, @x2 and @y2 defines the
- * bounding box of the background and undecided areas. No changes to
- * the mask are done outside this rectangle.
- */
 void
 siox_foreground_extract (SioxState          * state,
                          SioxRefinementType  refinement,
@@ -1682,12 +1622,6 @@ siox_foreground_extract (SioxState          * state,
   update_mask (result_layer, mask);
 }
 
-/**
- * siox_done:
- * @state: The state of this tool.
- *
- * Frees the memory assciated with the state.
- */
 void
 siox_done (SioxState * state)
 {
