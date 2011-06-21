@@ -38,7 +38,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-//#define DEBUG_PREDEFINED_MASK_WRITE FALSE
+// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -682,7 +682,7 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
   gfloat alpha, confidence;
   gdouble weight;
   HashEntry* current;
-
+// TODO final_confidence should not get NAN!!!
   current = GET_ENTRY(hash_cache, x, y);
   if(current == NULL)
     {
@@ -816,7 +816,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   {
     gfloat current_alpha, mp;
-    gdouble meandiff = meandiff_q / meandiff_d;
+
     gdouble low_freq_alpha = low_freq_alpha_q / low_freq_alpha_d;
 
     gdouble final_confidence = sqrt(dist_squared(entry->foreground[0],
@@ -825,9 +825,20 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                                     entry->background[0],
                                     entry->background[1],
                                     entry->background[2]));
-    final_confidence /= meandiff;
+
+    if (meandiff_d != 0)
+      {
+        gdouble meandiff = meandiff_q / meandiff_d;
+        final_confidence /= meandiff;
+      }
+    else
+      {
+        final_confidence = 1;
+      }
+
     if (final_confidence > 1)
       final_confidence = 1;
+
     mp = projection (entry->foreground,
                      entry->background,
                      entry->color,
@@ -1111,7 +1122,7 @@ mask_percent_unknown (TileManager* mask_layer, gint x1, gint y1, gint x2, gint y
   PixelRegion mask;
   PixelRegionIterator *pr;
   gint row, col;
-  gint pixels_unknown = 0, pixels_total = (x2-x1) * (y2-y1);
+  gint pixels_unknown = 0, pixels_total = (x2 - x1) * (y2 - y1);
 
   int width, height;
 
