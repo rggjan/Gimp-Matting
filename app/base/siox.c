@@ -1085,11 +1085,17 @@ initialize_new_layer (TileManager* source_layer,
               d[1] = s[1];
               d[2] = s[2];
               if (m[0] == MATTING_USER_FOREGROUND)
-                d[3] = 255;
+                {
+                  d[3] = 255;
+                }
               else if (m[0] == MATTING_USER_BACKGROUND)
-                d[3] = 0;
+                {
+                  d[3] = 0;
+                }
               else
-                d[3] = 128;
+                {
+                  d[3] = 128;
+                }
             }
 
           src_data += src.rowstride;
@@ -1100,19 +1106,19 @@ initialize_new_layer (TileManager* source_layer,
 }
 
 static gfloat
-mask_percent_unknown (TileManager* mask_layer)
+mask_percent_unknown (TileManager* mask_layer, gint x1, gint y1, gint x2, gint y2)
 {
   PixelRegion mask;
   PixelRegionIterator *pr;
   gint row, col;
-  gint pixels_unknown = 0, pixels_total = 0;
+  gint pixels_unknown = 0, pixels_total = (x2-x1) * (y2-y1);
 
   int width, height;
 
-  width = tile_manager_width (mask_layer);
-  height = tile_manager_height(mask_layer);
+  width = x2 - x1;
+  height = y2 - y1;
 
-  pixel_region_init (&mask, mask_layer, 0, 0, width, height, TRUE);
+  pixel_region_init (&mask, mask_layer, x1, y1, width, height, TRUE);
 
   if (mask.bytes != 1)
     return 1;
@@ -1129,12 +1135,10 @@ mask_percent_unknown (TileManager* mask_layer)
 
           for (col = 0; col < mask.w; col++, ++m)
             {
-              pixels_total++;
               if (m[0] != MATTING_USER_FOREGROUND && m[0] != MATTING_USER_BACKGROUND)
-              {
-                pixels_unknown++;
-                m[0] = 0;
-              }
+                {
+                  pixels_unknown++;
+                }
             }
 
           mask_data += mask.rowstride;
@@ -1366,10 +1370,10 @@ siox_foreground_extract (SioxState          * state,
 
   if (!state->enough_pixels)
     {
-      gfloat unknown_percent = mask_percent_unknown (mask);
+      gfloat unknown_percent = mask_percent_unknown (mask, x1, y1, x2, y2);
 
       g_printf("Unknown pixels: %f (%f)\n", unknown_percent, start_percentage);
-      if (unknown_percent > (1-start_percentage))
+      if (unknown_percent > (1 - start_percentage))
         {
           return;
         }
