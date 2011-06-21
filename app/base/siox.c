@@ -58,7 +58,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-#define DEBUG_PREDEFINED_MASK_WRITE FALSE
+//#define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -137,6 +137,7 @@ typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 struct _SioxState
 {
   TileManager  *pixels;
+  gboolean enough_pixels;
 };
 
 /* Progressbar update callback */
@@ -264,6 +265,7 @@ siox_init (TileManager  *pixels,
   state = g_slice_new (SioxState);
 
   state->pixels   = pixels;
+  state->enough_pixels = FALSE;
 
   return state;
 }
@@ -1134,6 +1136,50 @@ initialize_new_layer (TileManager* source_layer,
     }
 }
 
+static gfloat
+mask_percent_unknown (TileManager* mask_layer)
+{
+  PixelRegion mask;
+  PixelRegionIterator *pr;
+  gint row, col;
+  gint pixels_unknown = 0, pixels_total = 0;
+
+  int width, height;
+
+  width = tile_manager_width (mask_layer);
+  height = tile_manager_height(mask_layer);
+
+  pixel_region_init (&mask, mask_layer, 0, 0, width, height, TRUE);
+
+  if (mask.bytes != 1)
+    return 1;
+
+  for (pr = pixel_regions_register (1, &mask);
+       pr != NULL;
+       pr = pixel_regions_process (pr))
+    {
+      guchar *mask_data = mask.data;
+
+      for (row = 0; row < mask.h; row++)
+        {
+          guchar *m = mask_data;
+
+          for (col = 0; col < mask.w; col++, ++m)
+            {
+              pixels_total++;
+              if (m[0] != MATTING_USER_FOREGROUND && m[0] != MATTING_USER_BACKGROUND)
+              {
+                pixels_unknown++;
+                m[0] = 0;
+              }
+            }
+
+          mask_data += mask.rowstride;
+        }
+    }
+  return (gfloat) pixels_unknown / pixels_total;
+}
+
 #ifdef DEBUG_PREDEFINED_MASK_WRITE
 static void
 read_write_mask (TileManager* mask_layer, gboolean write)
@@ -1349,7 +1395,6 @@ siox_foreground_extract (SioxState          * state,
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-  gint         unknown_pixels = 0, total_pixels = 0;
 
   gboolean     unknown;
 
@@ -1378,6 +1423,17 @@ siox_foreground_extract (SioxState          * state,
 #ifdef DEBUG_PREDEFINED_MASK_WRITE
   read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
 #endif
+
+  if (!state->enough_pixels)
+    {
+      gfloat unknown_percent = mask_percent_unknown (mask);
+
+      g_printf("Unknown pixels: %f\n", unknown_percent);
+      if (unknown_percent > 0.3)
+        {
+          return;
+        }
+    }
 
   initialize_new_layer (state->pixels, working_layer, mask);
 
@@ -1416,7 +1472,6 @@ siox_foreground_extract (SioxState          * state,
                   search_for_neighbours (big_cache, x, y, pointer + 3);
 
                   unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
-                  total_pixels++;
 
 #ifdef DEBUG_SHOW_SPECIAL
                   if (DEBUG_SHOW_SPECIAL == 3)
@@ -1432,7 +1487,6 @@ siox_foreground_extract (SioxState          * state,
 #ifdef DEBUG_SHOW_SPECIAL
                       pointer[3] = 255;
 #endif
-                      unknown_pixels++;
                       // TODO: free this memory
 
                       // TODO: check if this can really be uncomented
@@ -1475,13 +1529,6 @@ siox_foreground_extract (SioxState          * state,
 
   // End the list with a null pointer
   previous_entry->next.value = 0;
-
-  g_printf("Unknown pixels: %f\n", (float) unknown_pixels / total_pixels);
-  if ((float) unknown_pixels / total_pixels > 0.3)
-    {
-      update_mask (result_layer, mask);
-      return;
-    }
 
 #ifndef DEBUG_PHASE1
 
