@@ -49,7 +49,7 @@
 typedef void (* SioxProgressFunc) (gpointer  progress_data,
                                    gdouble   fraction);
 
-SioxState * siox_init               (TileManager        *pixels,
+MattingState * siox_init               (TileManager        *pixels,
                                      const guchar       *colormap,
                                      gint                offset_x,
                                      gint                offset_y,
@@ -58,7 +58,7 @@ SioxState * siox_init               (TileManager        *pixels,
                                      gint                width,
                                      gint                height);
 
-void        siox_foreground_extract (SioxState          *state,
+void        siox_foreground_extract (MattingState          *state,
                                      SioxRefinementType  refinement,
                                      TileManager        *mask,
                                      gint                x1,
@@ -73,6 +73,6 @@ void        siox_foreground_extract (SioxState          *state,
 				     TileManager        *result_layer,
 				     TileManager        *working_layer);
 
-void        siox_done               (SioxState          *state);
+void        siox_done               (MattingState          *state);
 
 #endif /* __SIOX_H__ */

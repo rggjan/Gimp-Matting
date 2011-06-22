@@ -112,11 +112,14 @@ typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
 #define GET_ENTRY(hash_cache, x, y) (hash_cache[HASH_CACHE_EXTRA+y][HASH_CACHE_EXTRA+x])
 typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 
-/* A struct that holds SIOX current state */
-struct _SioxState
+/* A struct that holds the MATTING current state */
+struct _MattingState
 {
   TileManager  *pixels;
   gboolean enough_pixels;
+
+  BigCache     big_cache;
+  //HashCache    hash_cache;
 };
 
 /* Progressbar update callback */
@@ -211,7 +214,7 @@ static void debug_cache (const char* filename, BigCache cache, int radius)
 }
 #endif
 
-SioxState *
+MattingState *
 siox_init (TileManager  *pixels,
            const guchar *colormap,
            gint          offset_x,
@@ -221,10 +224,10 @@ siox_init (TileManager  *pixels,
            gint          width,
            gint          height)
 {
-  SioxState *state;
+  MattingState *state;
 
   g_return_val_if_fail (pixels != NULL, NULL);
-  state = g_slice_new (SioxState);
+  state = g_slice_new (MattingState);
 
   state->pixels   = pixels;
   state->enough_pixels = FALSE;
@@ -374,9 +377,9 @@ objective_function (SearchStructure *fg,
                     SearchStructure *bg,
                     gint x,
                     gint y,
-                    BigCache big_cache,
                     float* best_alpha,
-                    float pfp)
+                    float pfp,
+                    MattingState *state)
 {
   gint xi, yi;
   float ap;
@@ -390,11 +393,8 @@ objective_function (SearchStructure *fg,
       for (xi = -1; xi < 2; xi++)
         {
           // TODO check borders
-          guchar P[3];
-
-          P[0] = GET_PIXEL (big_cache, x + xi, y + yi, 0);
-          P[1] = GET_PIXEL (big_cache, x + xi, y + yi, 1);
-          P[2] = GET_PIXEL (big_cache, x + xi, y + yi, 2);
+          guchar *P = &(GET_PIXEL (state->big_cache, x + xi, y + yi, 0));
+          
           if (xi != 0 || yi != 0)
             {
               Np += projection (fg->color, bg->color, P, NULL);
@@ -406,10 +406,6 @@ objective_function (SearchStructure *fg,
         }
     }
 
-  // TODO calculate pfp, this is a GLOBAL value!!!
-  // pfp = bg->gradient / (fg->gradient + bg->gradient);
-  // pfp = 0.5;
-  //pfp = 0.5;
   ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
 
   *best_alpha = finalAlpha;
@@ -427,11 +423,11 @@ static inline gfloat dist_squared(guchar x1, guchar y1, guchar z1, guchar x2, gu
   return (gfloat) (diff_x * diff_x + diff_y * diff_y + diff_z * diff_z);
 }
 
-static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cache)
+static gfloat calculate_variance (guchar P[3], gint x, gint y, MattingState *state)
 {
   gint yi;
   gint xi;
-  guchar my_alpha = GET_PIXEL (big_cache, x, y, 3);
+  guchar my_alpha = GET_PIXEL (state->big_cache, x, y, 3);
 
   gfloat sum = 0;
   gint num_found = 0;
@@ -442,11 +438,11 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, BigCache big_cach
         {
           // TODO: got a SEGFAULT once!!!
           // TODO check borders
-          if (GET_PIXEL (big_cache, x + xi, y + yi, 3) == my_alpha)
+          if (GET_PIXEL (state->big_cache, x + xi, y + yi, 3) == my_alpha)
             {
-              sum += dist_squared(GET_PIXEL (big_cache, x + xi, y + yi, 0),
-                                  GET_PIXEL (big_cache, x + xi, y + yi, 1),
-                                  GET_PIXEL (big_cache, x + xi, y + yi, 2),
+              sum += dist_squared(GET_PIXEL (state->big_cache, x + xi, y + yi, 0),
+                                  GET_PIXEL (state->big_cache, x + xi, y + yi, 1),
+                                  GET_PIXEL (state->big_cache, x + xi, y + yi, 2),
                                   P[0],
                                   P[1],
                                   P[2]);
@@ -490,7 +486,7 @@ static void load_hash_cache (GHashTable* unknown_hash, HashCache hash_cache,
 static void inline
 compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
                       HashCache hash_cache, GHashTable* unknown_hash,
-                      BigCache big_cache)
+                      MattingState *state)
 {
   gint pos_x, pos_y;
   gint tx, ty;
@@ -769,7 +765,7 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
 static void inline
 local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                  HashCache hash_cache, GHashTable* unknown_hash,
-                 BigCache big_cache, TileManager *working_layer)
+                 TileManager *working_layer, MattingState *state)
 {
   gint pos_x, pos_y;
   gint tx, ty;
@@ -817,7 +813,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                                   fq, fd, bq, bd,
                                   &meandiff_q, &meandiff_d,
                                   &low_freq_alpha_q, &low_freq_alpha_d,
-                                  hash_cache, big_cache,
+                                  hash_cache, state->big_cache,
                                   xdiff == 0 && ydiff == 0);
         }
     }
@@ -872,7 +868,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
 static void inline
 search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
-                     BigCache big_cache, TileManager* layer)
+                     TileManager* layer, MattingState *state)
 {
   gint pos_x, pos_y;
   gint orig_pos_x, orig_pos_y;
@@ -917,7 +913,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   if (*current_tx != tx || *current_ty != ty)
     {
-//      load_big_cache (layer, big_cache, tx, ty, 3);
+      load_big_cache (layer, NULL,  state->big_cache, tx, ty, 3);
       *current_tx = tx;
       *current_ty = ty;
 
@@ -958,10 +954,10 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
               gint xtmp = permutation[direction] + pos_x;
               gint ytmp = permutation[(direction + 1) % 4] + pos_y;
 
-              r = GET_PIXEL (big_cache, xtmp, ytmp, 0);
-              g = GET_PIXEL (big_cache, xtmp, ytmp, 1);
-              b = GET_PIXEL (big_cache, xtmp, ytmp, 2);
-              a = GET_PIXEL (big_cache, xtmp, ytmp, 3);
+              r = GET_PIXEL (state->big_cache, xtmp, ytmp, 0);
+              g = GET_PIXEL (state->big_cache, xtmp, ytmp, 1);
+              b = GET_PIXEL (state->big_cache, xtmp, ytmp, 2);
+              a = GET_PIXEL (state->big_cache, xtmp, ytmp, 3);
 
               gradients[direction] += sqrt(dist_squared(prevval[direction][0],
                                            prevval[direction][1],
@@ -1022,9 +1018,9 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                                                       &(found[1][background_direction]),
                                                       pos_x,
                                                       pos_y,
-                                                      big_cache,
                                                       &current_alpha,
-                                                      pfp);
+                                                      pfp,
+                                                      state);
                     if (temp < min)
                       {
                         best_alpha = current_alpha;
@@ -1056,8 +1052,8 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->alpha = (1 - best_alpha) * 255;
         entry->valid = TRUE;
 
-        entry->sigma_b_squared = calculate_variance (best_background.color, best_background.x, best_background.y, big_cache);
-        entry->sigma_f_squared = calculate_variance (best_foreground.color, best_foreground.x, best_foreground.y, big_cache);
+        entry->sigma_b_squared = calculate_variance (best_background.color, best_background.x, best_background.y, state);
+        entry->sigma_f_squared = calculate_variance (best_foreground.color, best_foreground.x, best_foreground.y, state);
       }
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
@@ -1297,12 +1293,12 @@ check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* re
 }
 
 static inline guchar
-search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* color)
+search_for_neighbours (gint x, gint y, guchar* color, MattingState *state)
 {
   gint   radius, n;
   guchar alpha;
 
-  alpha = GET_PIXEL (big_cache, x, y, 3);
+  alpha = GET_PIXEL (state->big_cache, x, y, 3);
 
   if (alpha != 128)
     {
@@ -1313,16 +1309,16 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* color)
     {
       for (n = -radius; n < radius; n++)
         {
-          if (check_closeness (color, big_cache, x + radius, y + n, &alpha))
+          if (check_closeness (color, state->big_cache, x + radius, y + n, &alpha))
             return alpha;
 
-          if (check_closeness (color, big_cache, x - radius, y + n, &alpha))
+          if (check_closeness (color, state->big_cache, x - radius, y + n, &alpha))
             return alpha;
 
-          if (check_closeness (color, big_cache, x + n, y + radius, &alpha))
+          if (check_closeness (color, state->big_cache, x + n, y + radius, &alpha))
             return alpha;
 
-          if (check_closeness (color, big_cache, x + n, y - radius, &alpha))
+          if (check_closeness (color, state->big_cache, x + n, y - radius, &alpha))
             return alpha;
         }
     }
@@ -1330,7 +1326,7 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* color)
 }
 
 void
-siox_foreground_extract (SioxState          * state,
+siox_foreground_extract (MattingState       *state,
                          SioxRefinementType  refinement,
                          TileManager        * mask,
                          gint                x1,
@@ -1345,7 +1341,6 @@ siox_foreground_extract (SioxState          * state,
                          TileManager        * result_layer,
                          TileManager        * working_layer)
 {
-  BigCache     big_cache;
   Tile        *tile;
 
   gint         tx, ty, x, y;
@@ -1395,7 +1390,7 @@ siox_foreground_extract (SioxState          * state,
           guint   height_tile;
           guint   width_tile;
 
-          load_big_cache (state->pixels, mask, big_cache, tx, ty, 1);
+          load_big_cache (state->pixels, mask, state->big_cache, tx, ty, 1);
 
 #ifdef IMAGE_DEBUG_PPM
           {
@@ -1418,10 +1413,10 @@ siox_foreground_extract (SioxState          * state,
                 {
                   guchar alpha;
 
-                  pointer[0] = GET_PIXEL (big_cache, x, y, 0);
-                  pointer[1] = GET_PIXEL (big_cache, x, y, 1);
-                  pointer[2] = GET_PIXEL (big_cache, x, y, 2);
-                  alpha = search_for_neighbours (big_cache, x, y, pointer);
+                  pointer[0] = GET_PIXEL (state->big_cache, x, y, 0);
+                  pointer[1] = GET_PIXEL (state->big_cache, x, y, 1);
+                  pointer[2] = GET_PIXEL (state->big_cache, x, y, 2);
+                  alpha = search_for_neighbours (x, y, pointer, state);
                   pointer[3] = alpha;
 
 #ifdef DEBUG_SHOW_SPECIAL
@@ -1445,7 +1440,7 @@ siox_foreground_extract (SioxState          * state,
                       //entry->foreground[1] = 0;
                       //entry->foreground[2] = 0;
                       //entry->alpha = 255;
-                      entry->valid = TRUE;
+                      entry->valid = FALSE;
                       entry->this.coords.x = tx * 64 + x;
                       entry->this.coords.y = ty * 64 + y;
 
@@ -1492,46 +1487,47 @@ siox_foreground_extract (SioxState          * state,
         while (current != NULL && current->next.value != 0)
           {
             search_neighborhood (current, &current_tx, &current_ty,
-                                 big_cache, result_layer);
+                                 result_layer, state);
 
             current = g_hash_table_lookup (unknown_hash, &(current->next));
           }
       }
 
-#ifndef DEBUG_PHASE2
-      // Phase 3, get better values from neighbours
-      {
-        HashEntry *current = first_entry;
-        HashCache hash_cache;
-        gint current_tx = -1;
-        gint current_ty = -1;
-
-        while (current != NULL && current->next.value != 0)
+      if (DEBUG_PHASE > 2)
+        {
+          // Phase 3, get better values from neighbours
           {
-            compare_neighborhood (current, &current_tx, &current_ty,
-                                  hash_cache, unknown_hash, big_cache);
+            HashEntry *current = first_entry;
+            HashCache hash_cache;
+            gint current_tx = -1;
+            gint current_ty = -1;
 
-            current = g_hash_table_lookup (unknown_hash, &(current->next));
+            while (current != NULL && current->next.value != 0)
+              {
+                compare_neighborhood (current, &current_tx, &current_ty,
+                                      hash_cache, unknown_hash, state);
+
+                current = g_hash_table_lookup (unknown_hash, &(current->next));
+              }
           }
-      }
 
 #ifndef DEBUG_PHASE3
-      // Phase 4, get final color values
-      {
-        HashEntry *current = first_entry;
-        HashCache hash_cache;
-        gint current_tx = -1;
-        gint current_ty = -1;
-
-        while (current != NULL && current->next.value != 0)
+          // Phase 4, get final color values
           {
-            local_smoothing (current, &current_tx, &current_ty,
-                             hash_cache, unknown_hash, big_cache, working_layer);
+            HashEntry *current = first_entry;
+            HashCache hash_cache;
+            gint current_tx = -1;
+            gint current_ty = -1;
 
-            current = g_hash_table_lookup (unknown_hash, &(current->next));
+            while (current != NULL && current->next.value != 0)
+              {
+                local_smoothing (current, &current_tx, &current_ty,
+                                 hash_cache, unknown_hash, working_layer, state);
+
+                current = g_hash_table_lookup (unknown_hash, &(current->next));
+              }
           }
-      }
-#endif
+        }
 #endif
     }
 
@@ -1573,7 +1569,7 @@ siox_foreground_extract (SioxState          * state,
               }
             pointer[3] = current->alpha;
           }
-          
+
         tmp = g_hash_table_lookup (unknown_hash, &(current->next));
         g_slice_free(HashEntry, current);
         current = tmp;
@@ -1679,9 +1675,9 @@ siox_foreground_extract (SioxState          * state,
 }
 
 void
-siox_done (SioxState * state)
+siox_done (MattingState * state)
 {
   g_return_if_fail (state != NULL);
 
-  g_slice_free (SioxState, state);
+  g_slice_free (MattingState, state);
 }

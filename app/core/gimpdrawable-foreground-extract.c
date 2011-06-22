@@ -69,7 +69,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
 
 }
 
-SioxState *
+MattingState *
 gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
                                             gint          x,
                                             gint          y,
@@ -80,7 +80,7 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
-  //SioxState    *state;
+  //MattingState    *state;
   
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
@@ -156,7 +156,7 @@ void
 gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
                                        GimpLayer          *result_layer,
                                        GimpLayer          *working_layer,
-                                       SioxState          *state,
+                                       MattingState          *state,
                                        SioxRefinementType  refinement,
                                        gfloat              start_percentage,
                                        const gdouble       sensitivity[3],
@@ -236,7 +236,7 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
 }
 
 void
-gimp_drawable_foreground_extract_siox_done (SioxState *state)
+gimp_drawable_foreground_extract_siox_done (MattingState *state)
 {
   g_return_if_fail (state != NULL);
 

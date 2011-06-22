@@ -28,7 +28,7 @@ void       gimp_drawable_foreground_extract (GimpDrawable              *drawable
 
 /*  SIOX specific API  */
 
-SioxState * gimp_drawable_foreground_extract_siox_init   (GimpDrawable *drawable,
+MattingState * gimp_drawable_foreground_extract_siox_init   (GimpDrawable *drawable,
                                                           gint          x,
                                                           gint          y,
                                                           gint          width,
@@ -36,13 +36,13 @@ SioxState * gimp_drawable_foreground_extract_siox_init   (GimpDrawable *drawable
 void        gimp_drawable_foreground_extract_siox  (GimpDrawable       *mask,
 						    GimpLayer          *result_layer,
 						    GimpLayer          *working_layer,
-                                                    SioxState          *state,
+                                                    MattingState          *state,
                                                     SioxRefinementType  refinemane,
                                                     gfloat start_percentage,
                                                     const gdouble       sensitivity[3],
                                                     gboolean            multiblob,
                                                     GimpProgress       *progress);
-void        gimp_drawable_foreground_extract_siox_done (SioxState      *state);
+void        gimp_drawable_foreground_extract_siox_done (MattingState      *state);
 
 
 #endif  /*  __GIMP_DRAWABLE_FOREGROUND_EXTRACT_H__  */

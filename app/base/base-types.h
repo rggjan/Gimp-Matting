@@ -65,7 +65,7 @@ typedef struct _PixelRegionHolder   PixelRegionHolder;
 
 typedef struct _PixelSurround       PixelSurround;
 
-typedef struct _SioxState           SioxState;
+typedef struct _MattingState        MattingState;
 
 typedef struct _TempBuf             TempBuf;
 
