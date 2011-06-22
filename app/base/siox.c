@@ -37,7 +37,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-#define DEBUG_PREDEFINED_MASK_WRITE FALSE
+// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 //#define CAN_USE_ORIGINAL_COLORS
 //#define HIGH_WEIGHT_FG_BG
@@ -1225,10 +1225,16 @@ MattingState *state)
               mask != MATTING_USER_BACKGROUND)
                 {
                   guchar result = r[3];
-                  if (result > 128)
+                  //if (result > ==)
+                  /*
                     m[0] = MATTING_ALGO_FOREGROUND;
                   else
-                    m[0] = MATTING_ALGO_BACKGROUND;
+                    m[0] = MATTING_ALGO_BACKGROUND;*/
+                  if (result == MATTING_USER_FOREGROUND)
+                    result--;
+                    if (result == MATTING_USER_BACKGROUND)
+                    result++;
+                  m[0] = result;
                 }
             }
 
