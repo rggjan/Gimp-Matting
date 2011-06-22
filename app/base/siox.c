@@ -32,7 +32,7 @@
 #define DEBUG_PHASE 3
 
 // 0 = foreground, 1 = background, 2 = alpha
-// #define DEBUG_SHOW_SPECIAL 0
+//#define DEBUG_SHOW_SPECIAL 2
 
 // TRUE for writing
 // FALSE for reading
@@ -1601,13 +1601,22 @@ siox_foreground_extract (MattingState       *state,
                     switch (DEBUG_SHOW_SPECIAL)
                       {
                       case 0:
-                        pointer[i] = current->foreground[i];
+                        if (DEBUG_PHASE == 3)
+                          pointer[i] = current->foreground_refined[i];
+                        else
+                          pointer[i] = current->foreground[i];
                         break;
                       case 1:
-                        pointer[i] = current->background[i];
+                        if (DEBUG_PHASE == 3)
+                          pointer[i] = current->background_refined[i];
+                        else
+                          pointer[i] = current->background[i];
                         break;
                       case 2:
-                        pointer[i] = current->alpha;
+                        if (DEBUG_PHASE == 3)
+                          pointer[i] = current->alpha_refined;
+                        else
+                          pointer[i] = current->alpha;
                         break;
                       }
                   }
