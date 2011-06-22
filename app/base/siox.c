@@ -26,12 +26,13 @@
 #include "tile-manager.h"
 #include "siox.h"
 
-//#define IMAGE_DEBUG_PPM
+#define IMAGE_DEBUG_PPM
 
-#define DEBUG_PHASE 1
+// Stop after certain phase
+#define DEBUG_PHASE 2
 
-// 1 = foreground, 2 = background, 3 = alpha
-//#define DEBUG_SHOW_SPECIAL 3
+// 0 = foreground, 1 = background, 2 = alpha
+// #define DEBUG_SHOW_SPECIAL 0
 
 // TRUE for writing
 // FALSE for reading
@@ -115,14 +116,16 @@ typedef HashEntry* HashCache[HASH_CACHE_SIZE][HASH_CACHE_SIZE];
 /* A struct that holds the MATTING current state */
 struct _MattingState
 {
-  TileManager  *pixels;
+  TileManager *pixels;
+  TileManager *result_layer;
+  TileManager *mask;
+
   gboolean enough_pixels;
 
   BigCache     big_cache;
-  gint x1;
-  gint y1;
-  gint x2;
-  gint y2;
+
+  gint x1, y1, x2, y2;
+  gint tx, ty;
   //HashCache    hash_cache;
 };
 
@@ -249,13 +252,15 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
   gint    bx, by;
   gint    width_tile, height_tile;
 
-  Tile   *src_tile;
-  Tile   *mask_tile;
-  guchar *src_pointer;
-  guchar *mask_pointer;
+  Tile   *src_tile = NULL;
+  Tile   *mask_tile = NULL;
+  guchar *src_pointer = NULL;
+  guchar *mask_pointer = NULL;
+
+  guchar mask_bpp = tile_manager_bpp(mask);
 
   g_return_if_fail ((tile_manager_bpp(source) == 4 && mask == NULL) ||
-                    (tile_manager_bpp(source) == 3 && tile_manager_bpp(mask) == 1));
+                    (tile_manager_bpp(source) == 3));
 
   for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
@@ -271,7 +276,9 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
           if (src_tile)
             {
               src_pointer = tile_data_pointer (src_tile, 0, 0);
-              mask_pointer = tile_data_pointer (mask_tile, 0, 0);
+              if (mask)
+                mask_pointer = tile_data_pointer (mask_tile, 0, 0);
+
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
 
@@ -285,12 +292,15 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
                       GET_PIXEL(big_cache, bx, by, 0) = src_pointer[0];
                       GET_PIXEL(big_cache, bx, by, 1) = src_pointer[1];
                       GET_PIXEL(big_cache, bx, by, 2) = src_pointer[2];
-                      GET_PIXEL(big_cache, bx, by, 3) = mask_pointer[0];
+                      if (mask)
+                        GET_PIXEL(big_cache, bx, by, 3) = mask_pointer[mask_bpp-1];
+                      else
+                        GET_PIXEL(big_cache, bx, by, 3) = src_pointer[3];
 
                       if (mask)
                         {
                           src_pointer += 3;
-                          mask_pointer += 1;
+                          mask_pointer += mask_bpp;
                         }
                       else
                         {
@@ -300,7 +310,8 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
                 }
 
               tile_release (src_tile, FALSE);
-              tile_release (mask_tile, FALSE);
+              if (mask)
+                tile_release (mask_tile, FALSE);
             }
 
           for (y = 0; y < 64; y++)
@@ -871,8 +882,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 }
 
 static void inline
-search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
-                     TileManager* layer, MattingState *state)
+search_neighborhood (HashEntry* entry, MattingState *state)
 {
   gint pos_x, pos_y;
   gint orig_pos_x, orig_pos_y;
@@ -915,21 +925,22 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
   pos_x = orig_pos_x - 64 * tx;
   pos_y = orig_pos_y - 64 * ty;
 
-  if (*current_tx != tx || *current_ty != ty)
+  if (state->tx != tx || state->ty != ty)
     {
-      load_big_cache (layer, NULL,  state->big_cache, tx, ty, 3);
-      *current_tx = tx;
-      *current_ty = ty;
+      load_big_cache (state->pixels, state->result_layer, state->big_cache, tx, ty, 3);
 
 #ifdef IMAGE_DEBUG_PPM
       {
-        static gchar buffer[100];
-        snprintf (buffer, 100, "bigger_cache_tx_%i_ty_%i", tx, ty);
-        debug_cache (buffer, big_cache, 3);
+        static char buffer[100];
+
+        snprintf (buffer, 100, "pixels_result_%i_%i", tx, ty);
+        debug_cache (buffer, state->big_cache, 3);
       }
 #endif
-    }
 
+      state->tx = tx;
+      state->ty = ty;
+    }
 
   // in a 9x9 window, we want to have values in a 90° window
   angle = ((orig_pos_x % 3) + (orig_pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
@@ -1017,7 +1028,6 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
                 if (found[1][background_direction].found)
                   {
                     float current_alpha;
-
                     gfloat temp = objective_function (&(found[0][foreground_direction]),
                                                       &(found[1][background_direction]),
                                                       pos_x,
@@ -1274,7 +1284,7 @@ check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* re
 
   value = GET_PIXEL (big_cache, x, y, 3);
 
-  if (value != 128)
+  if (value == MATTING_USER_FOREGROUND || value == MATTING_USER_BACKGROUND)
     {
       color_distance_sum = 0;
       for (i = 0; i < 3; i++)
@@ -1285,7 +1295,10 @@ check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* re
 
       if (color_distance_sum < MATTING_SQUARED_COLOR_DISTANCE)
         {
-          *result = value;
+          if (value == MATTING_USER_FOREGROUND)
+            *result = 255;
+          else
+            *result = 0;
           return TRUE;
         }
     }
@@ -1301,9 +1314,14 @@ search_for_neighbours (gint x, gint y, guchar* color, MattingState *state)
 
   alpha = GET_PIXEL (state->big_cache, x, y, 3);
 
-  if (alpha != 128)
+  if (alpha == MATTING_USER_BACKGROUND)
     {
-      return alpha;
+      return 0;
+    }
+
+  if (alpha == MATTING_USER_FOREGROUND)
+    {
+      return 255;
     }
 
   for (radius = 0; radius <= SEARCH_RADIUS; radius++)
@@ -1375,6 +1393,9 @@ siox_foreground_extract (MattingState       *state,
   state->x2 = x2;
   state->y2 = y2;
 
+  state->result_layer = result_layer;
+  state->mask = mask;
+
   if (!state->enough_pixels)
     {
       gfloat unknown_percent = mask_percent_unknown (mask, state);
@@ -1387,7 +1408,7 @@ siox_foreground_extract (MattingState       *state,
       state->enough_pixels = TRUE;
     }
 
-  initialize_new_layer (result_layer, mask, state);
+  //initialize_new_layer (result_layer, mask, state);
 
   for (ty = y1 / 64; ty <= y2 / 64; ty++)
     {
@@ -1402,8 +1423,8 @@ siox_foreground_extract (MattingState       *state,
           {
             static char buffer[100];
 
-            snprintf (buffer, 100, "big_cache_tx_%i_ty_%i", tx, ty);
-            debug_cache (buffer, big_cache, 1);
+            snprintf (buffer, 100, "pixels_mask_%i_%i", tx, ty);
+            debug_cache (buffer, state->big_cache, 1);
           }
 #endif
 
@@ -1425,20 +1446,9 @@ siox_foreground_extract (MattingState       *state,
                   alpha = search_for_neighbours (x, y, pointer, state);
                   pointer[3] = alpha;
 
-#ifdef DEBUG_SHOW_SPECIAL
-                  if (DEBUG_SHOW_SPECIAL == 3)
-                    {
-                      pointer[0] = 128;
-                      pointer[1] = 128;
-                      pointer[2] = 128;
-                    }
-#endif
                   if (alpha == 128)
                     {
                       HashEntry *entry = g_slice_new (HashEntry);
-#ifdef DEBUG_SHOW_SPECIAL
-                      pointer[3] = 255;
-#endif
                       // TODO: free this memory
 
                       // TODO: check if this can really be uncomented
@@ -1466,10 +1476,6 @@ siox_foreground_extract (MattingState       *state,
 
                       g_hash_table_insert (unknown_hash, &(entry->this), entry);
                     }
-#ifdef DEBUG_SHOW_SPECIAL
-                  else
-                    pointer[3] = 0;
-#endif
                 }
             }
 
@@ -1487,13 +1493,12 @@ siox_foreground_extract (MattingState       *state,
       // Phase 2, loop over values in hash and fill them in
       {
         HashEntry *current = first_entry;
-        gint current_tx = -1;
-        gint current_ty = -1;
+        state->tx = -1;
+        state->ty = -1;
 
         while (current != NULL && current->next.value != 0)
           {
-            search_neighborhood (current, &current_tx, &current_ty,
-                                 result_layer, state);
+            search_neighborhood (current, state);
 
             current = g_hash_table_lookup (unknown_hash, &(current->next));
           }
@@ -1549,7 +1554,9 @@ siox_foreground_extract (MattingState       *state,
 
     while (current != NULL && current->next.value != 0)
       {
+#ifndef DEBUG_SHOW_SPECIAL
         if (current->valid)
+#endif
           {
             tx = current->this.coords.x / 64;
             ty = current->this.coords.y / 64;
@@ -1569,11 +1576,42 @@ siox_foreground_extract (MattingState       *state,
               }
 
             pointer = tile_data_pointer (tile, pos_x, pos_y);
+
+#ifdef DEBUG_SHOW_SPECIAL
+            if (current->valid)
+              {
+                pointer[3] = 255;
+
+                for (i = 0; i < 3; i++)
+                  {
+                    switch (DEBUG_SHOW_SPECIAL)
+                      {
+                      case 0:
+                        pointer[i] = current->foreground[i];
+                        break;
+                      case 1:
+                        pointer[i] = current->background[i];
+                        break;
+                      case 2:
+                        pointer[i] = current->alpha;
+                        break;
+                      }
+                  }
+              }
+            else
+              {
+                pointer[0] = 255;
+                pointer[1] = 0;
+                pointer[2] = 0;
+                pointer[3] = 255;
+              }
+#else
             for (i = 0; i < 3; i++)
               {
                 pointer[i] = current->foreground[i];
               }
             pointer[3] = current->alpha;
+#endif
           }
 
         tmp = g_hash_table_lookup (unknown_hash, &(current->next));
@@ -1635,34 +1673,34 @@ siox_foreground_extract (MattingState       *state,
 
                         pointer[3] = 255;
   #else
-                        pointer[3] = current->alpha_refined;
+    pointer[3] = current->alpha_refined;
   #endif // DEBUG_SHOW_SPECIAL
   #else
-                        pointer[0] = current->foreground[0];
-                        pointer[1] = current->foreground[1];
-                        pointer[2] = current->foreground[2];
+    pointer[0] = current->foreground[0];
+    pointer[1] = current->foreground[1];
+    pointer[2] = current->foreground[2];
   #ifdef DEBUG_SHOW_SPECIAL
-                        if (DEBUG_SHOW_SPECIAL == 1)
-                          {
-                            pointer[0] = current->foreground[0];
-                            pointer[1] = current->foreground[1];
-                            pointer[2] = current->foreground[2];
-                          }
-                        else if (DEBUG_SHOW_SPECIAL == 2)
-                          {
-                            pointer[0] = current->background[0];
-                            pointer[1] = current->background[1];
-                            pointer[2] = current->background[2];
-                          }
-                        else
-                          {
-                            pointer[0] = current->alpha;
-                            pointer[1] = current->alpha;
-                            pointer[2] = current->alpha;
-                          }
-                        pointer[3] = 255;
+    if (DEBUG_SHOW_SPECIAL == 1)
+      {
+        pointer[0] = current->foreground[0];
+        pointer[1] = current->foreground[1];
+        pointer[2] = current->foreground[2];
+      }
+    else if (DEBUG_SHOW_SPECIAL == 2)
+      {
+        pointer[0] = current->background[0];
+        pointer[1] = current->background[1];
+        pointer[2] = current->background[2];
+      }
+    else
+      {
+        pointer[0] = current->alpha;
+        pointer[1] = current->alpha;
+        pointer[2] = current->alpha;
+      }
+    pointer[3] = 255;
   #else
-                        pointer[3] = current->alpha;
+    pointer[3] = current->alpha;
   #endif // DEBUG_SHOW_SPECIAL
   #endif
                       }
