@@ -66,17 +66,17 @@ const gfloat gauss[13][13] = {{1.7102e-06, 8.0986e-06, 2.8906e-05, 7.7761e-05, 0
 
 typedef union
 {
-  guint64 value;
+  guint32 value;
   struct
   {
-    guint32 x;
-    guint32 y;
+    guint16 x; // TODO assert x not bigger than this!
+    guint16 y;
   } coords;
 } HashAddress;
 
 struct HashEntry_
 {
-  guchar color[3];
+  guchar color[3]; // TODO remove
 
   guchar foreground[3];
   guchar background[3];
@@ -92,7 +92,8 @@ struct HashEntry_
 
   gfloat confidence;
 
-  gboolean pair_found;
+  gboolean valid;
+
   HashAddress this;
   HashAddress next;
 };
@@ -531,7 +532,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
         {
           current = GET_ENTRY(hash_cache, pos_x + xdiff, pos_y + ydiff);
 
-          if (current && current->pair_found)
+          if (current && current->valid)
             {
               gfloat current_alpha;
               // TODO: check if this projection is right! do we have to use other color values maybe?
@@ -1053,7 +1054,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
         entry->background[2] = best_background.color[2];
 
         entry->alpha = (1 - best_alpha) * 255;
-        entry->pair_found = TRUE;
+        entry->valid = TRUE;
 
         entry->sigma_b_squared = calculate_variance (best_background.color, best_background.x, best_background.y, big_cache);
         entry->sigma_f_squared = calculate_variance (best_foreground.color, best_foreground.x, best_foreground.y, big_cache);
@@ -1355,7 +1356,7 @@ siox_foreground_extract (SioxState          * state,
 
   static       GHashTable *unknown_hash = NULL;
 
-  unknown_hash = g_hash_table_new(g_int_hash, g_int64_equal);
+  unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
@@ -1444,7 +1445,7 @@ siox_foreground_extract (SioxState          * state,
                       //entry->foreground[1] = 0;
                       //entry->foreground[2] = 0;
                       //entry->alpha = 255;
-                      entry->pair_found = FALSE;
+                      entry->valid = TRUE;
                       entry->this.coords.x = tx * 64 + x;
                       entry->this.coords.y = ty * 64 + y;
 
@@ -1532,102 +1533,147 @@ siox_foreground_extract (SioxState          * state,
       }
 #endif
 #endif
-
-      // Last phase, fill values from hash back into result layer
-      for (ty = y1 / 64; ty <= y2 / 64; ty++)
-        {
-          for (tx = x1 / 64; tx <= x2 / 64; tx++)
-            {
-              guint height_tile;
-              guint width_tile;
-
-              tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-              pointer = tile_data_pointer (tile, 0, 0);
-
-              width_tile = tile_ewidth (tile);
-              height_tile = tile_eheight (tile);
-
-              for (y = 0; y < height_tile; y++)
-                {
-                  for (x = 0; x < width_tile; x++, pointer += 4)
-                    {
-                      HashEntry *current;
-                      HashAddress address;
-                      address.coords.x = tx * 64 + x;
-                      address.coords.y = ty * 64 + y;
-
-                      current = g_hash_table_lookup (unknown_hash, &address);
-
-                      if (current != NULL)
-                        {
-#ifdef DEBUG_PHASE3
-                          pointer[0] = current->foreground_refined[0];
-                          pointer[1] = current->foreground_refined[1];
-                          pointer[2] = current->foreground_refined[2];
-#ifdef DEBUG_SHOW_SPECIAL
-                          if (DEBUG_SHOW_SPECIAL == 1)
-                            {
-                              pointer[0] = current->foreground_refined[0];
-                              pointer[1] = current->foreground_refined[1];
-                              pointer[2] = current->foreground_refined[2];
-                            }
-                          else if (DEBUG_SHOW_SPECIAL == 2)
-                            {
-                              pointer[0] = current->background_refined[0];
-                              pointer[1] = current->background_refined[1];
-                              pointer[2] = current->background_refined[2];
-                            }
-                          else
-                            {
-                              pointer[0] = current->alpha_refined;
-                              pointer[1] = current->alpha_refined;
-                              pointer[2] = current->alpha_refined;
-                            }
-
-                          pointer[3] = 255;
-#else
-                          pointer[3] = current->alpha_refined;
-#endif // DEBUG_SHOW_SPECIAL
-#else
-                          pointer[0] = current->foreground[0];
-                          pointer[1] = current->foreground[1];
-                          pointer[2] = current->foreground[2];
-#ifdef DEBUG_SHOW_SPECIAL
-                          if (DEBUG_SHOW_SPECIAL == 1)
-                            {
-                              pointer[0] = current->foreground[0];
-                              pointer[1] = current->foreground[1];
-                              pointer[2] = current->foreground[2];
-                            }
-                          else if (DEBUG_SHOW_SPECIAL == 2)
-                            {
-                              pointer[0] = current->background[0];
-                              pointer[1] = current->background[1];
-                              pointer[2] = current->background[2];
-                            }
-                          else
-                            {
-                              pointer[0] = current->alpha;
-                              pointer[1] = current->alpha;
-                              pointer[2] = current->alpha;
-                            }
-                          pointer[3] = 255;
-#else
-                          pointer[3] = current->alpha;
-#endif // DEBUG_SHOW_SPECIAL
-#endif
-                        }
-                      else
-                        {
-#ifdef DEBUG_SHOW_SPECIAL
-                          pointer[3] = 0;
-#endif
-                        }
-                    }
-                }
-            }
-        }
     }
+
+  // Last phase, fill values from hash back into result layer
+  {
+    HashEntry *current = first_entry;
+    HashEntry *tmp;
+    Tile *tile = NULL;
+    gint current_tx = -1;
+    gint current_ty = -1;
+    gint tx, ty, pos_x, pos_y;
+    gint i;
+
+    while (current != NULL && current->next.value != 0)
+      {
+        if (current->valid)
+          {
+            tx = current->this.coords.x / 64;
+            ty = current->this.coords.y / 64;
+
+            pos_x = current->this.coords.x - 64 * tx;
+            pos_y = current->this.coords.y - 64 * ty;
+
+            if (current_tx != tx || current_ty != ty)
+              {
+                if (tile != NULL)
+                  tile_release(tile, TRUE);
+
+                tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+
+                current_tx = tx;
+                current_ty = ty;
+              }
+
+            pointer = tile_data_pointer (tile, pos_x, pos_y);
+            for (i = 0; i < 3; i++)
+              {
+                pointer[i] = current->foreground[i];
+              }
+            pointer[3] = current->alpha;
+          }
+          
+        tmp = g_hash_table_lookup (unknown_hash, &(current->next));
+        g_slice_free(HashEntry, current);
+        current = tmp;
+      }
+  }
+
+  /*
+    for (ty = y1 / 64; ty <= y2 / 64; ty++)
+      {
+        for (tx = x1 / 64; tx <= x2 / 64; tx++)
+          {
+            guint height_tile;
+            guint width_tile;
+
+            tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+            pointer = tile_data_pointer (tile, 0, 0);
+
+            width_tile = tile_ewidth (tile);
+            height_tile = tile_eheight (tile);
+
+            for (y = 0; y < height_tile; y++)
+              {
+                for (x = 0; x < width_tile; x++, pointer += 4)
+                  {
+                    HashEntry *current;
+                    HashAddress address;
+                    address.coords.x = tx * 64 + x;
+                    address.coords.y = ty * 64 + y;
+
+                    current = g_hash_table_lookup (unknown_hash, &address);
+
+                    if (current != NULL)
+                      {
+  #ifdef DEBUG_PHASE3
+                        pointer[0] = current->foreground_refined[0];
+                        pointer[1] = current->foreground_refined[1];
+                        pointer[2] = current->foreground_refined[2];
+  #ifdef DEBUG_SHOW_SPECIAL
+                        if (DEBUG_SHOW_SPECIAL == 1)
+                          {
+                            pointer[0] = current->foreground_refined[0];
+                            pointer[1] = current->foreground_refined[1];
+                            pointer[2] = current->foreground_refined[2];
+                          }
+                        else if (DEBUG_SHOW_SPECIAL == 2)
+                          {
+                            pointer[0] = current->background_refined[0];
+                            pointer[1] = current->background_refined[1];
+                            pointer[2] = current->background_refined[2];
+                          }
+                        else
+                          {
+                            pointer[0] = current->alpha_refined;
+                            pointer[1] = current->alpha_refined;
+                            pointer[2] = current->alpha_refined;
+                          }
+
+                        pointer[3] = 255;
+  #else
+                        pointer[3] = current->alpha_refined;
+  #endif // DEBUG_SHOW_SPECIAL
+  #else
+                        pointer[0] = current->foreground[0];
+                        pointer[1] = current->foreground[1];
+                        pointer[2] = current->foreground[2];
+  #ifdef DEBUG_SHOW_SPECIAL
+                        if (DEBUG_SHOW_SPECIAL == 1)
+                          {
+                            pointer[0] = current->foreground[0];
+                            pointer[1] = current->foreground[1];
+                            pointer[2] = current->foreground[2];
+                          }
+                        else if (DEBUG_SHOW_SPECIAL == 2)
+                          {
+                            pointer[0] = current->background[0];
+                            pointer[1] = current->background[1];
+                            pointer[2] = current->background[2];
+                          }
+                        else
+                          {
+                            pointer[0] = current->alpha;
+                            pointer[1] = current->alpha;
+                            pointer[2] = current->alpha;
+                          }
+                        pointer[3] = 255;
+  #else
+                        pointer[3] = current->alpha;
+  #endif // DEBUG_SHOW_SPECIAL
+  #endif
+                      }
+                    else
+                      {
+  #ifdef DEBUG_SHOW_SPECIAL
+                        pointer[3] = 0;
+  #endif
+                      }
+                  }
+              }
+          }
+      }*/
 
   update_mask (result_layer, mask, x1, y1, x2, y2);
 }
