@@ -28,9 +28,7 @@
 
 //#define IMAGE_DEBUG_PPM
 
-#define DEBUG_PHASE1
-//#define DEBUG_PHASE2
-//#define DEBUG_PHASE3
+#define DEBUG_PHASE 1
 
 // 1 = foreground, 2 = background, 3 = alpha
 //#define DEBUG_SHOW_SPECIAL 3
@@ -38,7 +36,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-#define DEBUG_PREDEFINED_MASK_WRITE TRUE
+//#define DEBUG_PREDEFINED_MASK_WRITE TRUE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -1219,18 +1217,19 @@ read_write_mask (TileManager* mask_layer, gboolean write)
 
 static void
 update_mask (TileManager* result_layer,
-             TileManager* mask_layer)
+             TileManager* mask_layer,
+             gint x1, gint y1, gint x2, gint y2)
 {
   PixelRegion result, mask;
   PixelRegionIterator *pr;
   gint row, col;
   int width, height;
 
-  width = tile_manager_width (result_layer);
-  height = tile_manager_height(result_layer);
+  width = x2 - x1;
+  height = y2 - y1; // TODO give this as argument
 
-  pixel_region_init (&result, result_layer, 0, 0, width, height, FALSE);
-  pixel_region_init (&mask, mask_layer, 0, 0, width, height, TRUE);
+  pixel_region_init (&result, result_layer, x1, y1, width, height, FALSE);
+  pixel_region_init (&mask, mask_layer, x1, y1, width, height, TRUE);
 
   g_return_if_fail (result.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
@@ -1256,10 +1255,8 @@ update_mask (TileManager* result_layer,
                   guchar result = r[3];
                   if (result > 128)
                     m[0] = MATTING_ALGO_FOREGROUND;
-                  else if (result < 128)
-                    m[0] = MATTING_ALGO_BACKGROUND;
                   else
-                    m[0] = MATTING_ALGO_UNDEFINED;
+                    m[0] = MATTING_ALGO_BACKGROUND;
                 }
             }
 
@@ -1328,7 +1325,7 @@ search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* color)
             return alpha;
         }
     }
-    return 128;
+  return 128;
 }
 
 void
@@ -1483,156 +1480,156 @@ siox_foreground_extract (SioxState          * state,
   // End the list with a null pointer
   previous_entry->next.value = 0;
 
-#ifndef DEBUG_PHASE1
-
-  // Phase 2, loop over values in hash and fill them in
-  {
-    HashEntry *current = first_entry;
-    gint current_tx = -1;
-    gint current_ty = -1;
-
-    while (current != NULL && current->next.value != 0)
+  if (DEBUG_PHASE > 1)
+    {
+      // Phase 2, loop over values in hash and fill them in
       {
-        search_neighborhood (current, &current_tx, &current_ty,
-                             big_cache, result_layer);
+        HashEntry *current = first_entry;
+        gint current_tx = -1;
+        gint current_ty = -1;
 
-        current = g_hash_table_lookup (unknown_hash, &(current->next));
+        while (current != NULL && current->next.value != 0)
+          {
+            search_neighborhood (current, &current_tx, &current_ty,
+                                 big_cache, result_layer);
+
+            current = g_hash_table_lookup (unknown_hash, &(current->next));
+          }
       }
-  }
 
 #ifndef DEBUG_PHASE2
-  // Phase 3, get better values from neighbours
-  {
-    HashEntry *current = first_entry;
-    HashCache hash_cache;
-    gint current_tx = -1;
-    gint current_ty = -1;
-
-    while (current != NULL && current->next.value != 0)
+      // Phase 3, get better values from neighbours
       {
-        compare_neighborhood (current, &current_tx, &current_ty,
-                              hash_cache, unknown_hash, big_cache);
+        HashEntry *current = first_entry;
+        HashCache hash_cache;
+        gint current_tx = -1;
+        gint current_ty = -1;
 
-        current = g_hash_table_lookup (unknown_hash, &(current->next));
+        while (current != NULL && current->next.value != 0)
+          {
+            compare_neighborhood (current, &current_tx, &current_ty,
+                                  hash_cache, unknown_hash, big_cache);
+
+            current = g_hash_table_lookup (unknown_hash, &(current->next));
+          }
       }
-  }
 
 #ifndef DEBUG_PHASE3
-  // Phase 4, get final color values
-  {
-    HashEntry *current = first_entry;
-    HashCache hash_cache;
-    gint current_tx = -1;
-    gint current_ty = -1;
-
-    while (current != NULL && current->next.value != 0)
+      // Phase 4, get final color values
       {
-        local_smoothing (current, &current_tx, &current_ty,
-                         hash_cache, unknown_hash, big_cache, working_layer);
+        HashEntry *current = first_entry;
+        HashCache hash_cache;
+        gint current_tx = -1;
+        gint current_ty = -1;
 
-        current = g_hash_table_lookup (unknown_hash, &(current->next));
+        while (current != NULL && current->next.value != 0)
+          {
+            local_smoothing (current, &current_tx, &current_ty,
+                             hash_cache, unknown_hash, big_cache, working_layer);
+
+            current = g_hash_table_lookup (unknown_hash, &(current->next));
+          }
       }
-  }
 #endif
 #endif
 
-  // Last phase, fill values from hash back into result layer
-  for (ty = y1 / 64; ty <= y2 / 64; ty++)
-    {
-      for (tx = x1 / 64; tx <= x2 / 64; tx++)
+      // Last phase, fill values from hash back into result layer
+      for (ty = y1 / 64; ty <= y2 / 64; ty++)
         {
-          guint height_tile;
-          guint width_tile;
-
-          tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-          pointer = tile_data_pointer (tile, 0, 0);
-
-          width_tile = tile_ewidth (tile);
-          height_tile = tile_eheight (tile);
-
-          for (y = 0; y < height_tile; y++)
+          for (tx = x1 / 64; tx <= x2 / 64; tx++)
             {
-              for (x = 0; x < width_tile; x++, pointer += 4)
+              guint height_tile;
+              guint width_tile;
+
+              tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+              pointer = tile_data_pointer (tile, 0, 0);
+
+              width_tile = tile_ewidth (tile);
+              height_tile = tile_eheight (tile);
+
+              for (y = 0; y < height_tile; y++)
                 {
-                  HashEntry *current;
-                  HashAddress address;
-                  address.coords.x = tx * 64 + x;
-                  address.coords.y = ty * 64 + y;
-
-                  current = g_hash_table_lookup (unknown_hash, &address);
-
-                  if (current != NULL)
+                  for (x = 0; x < width_tile; x++, pointer += 4)
                     {
-#ifdef DEBUG_PHASE3
-                      pointer[0] = current->foreground_refined[0];
-                      pointer[1] = current->foreground_refined[1];
-                      pointer[2] = current->foreground_refined[2];
-#ifdef DEBUG_SHOW_SPECIAL
-                      if (DEBUG_SHOW_SPECIAL == 1)
+                      HashEntry *current;
+                      HashAddress address;
+                      address.coords.x = tx * 64 + x;
+                      address.coords.y = ty * 64 + y;
+
+                      current = g_hash_table_lookup (unknown_hash, &address);
+
+                      if (current != NULL)
                         {
+#ifdef DEBUG_PHASE3
                           pointer[0] = current->foreground_refined[0];
                           pointer[1] = current->foreground_refined[1];
                           pointer[2] = current->foreground_refined[2];
-                        }
-                      else if (DEBUG_SHOW_SPECIAL == 2)
-                        {
-                          pointer[0] = current->background_refined[0];
-                          pointer[1] = current->background_refined[1];
-                          pointer[2] = current->background_refined[2];
-                        }
-                      else
-                        {
-                          pointer[0] = current->alpha_refined;
-                          pointer[1] = current->alpha_refined;
-                          pointer[2] = current->alpha_refined;
-                        }
+#ifdef DEBUG_SHOW_SPECIAL
+                          if (DEBUG_SHOW_SPECIAL == 1)
+                            {
+                              pointer[0] = current->foreground_refined[0];
+                              pointer[1] = current->foreground_refined[1];
+                              pointer[2] = current->foreground_refined[2];
+                            }
+                          else if (DEBUG_SHOW_SPECIAL == 2)
+                            {
+                              pointer[0] = current->background_refined[0];
+                              pointer[1] = current->background_refined[1];
+                              pointer[2] = current->background_refined[2];
+                            }
+                          else
+                            {
+                              pointer[0] = current->alpha_refined;
+                              pointer[1] = current->alpha_refined;
+                              pointer[2] = current->alpha_refined;
+                            }
 
-                      pointer[3] = 255;
+                          pointer[3] = 255;
 #else
-                      pointer[3] = current->alpha_refined;
+                          pointer[3] = current->alpha_refined;
 #endif // DEBUG_SHOW_SPECIAL
 #else
-                      pointer[0] = current->foreground[0];
-                      pointer[1] = current->foreground[1];
-                      pointer[2] = current->foreground[2];
-#ifdef DEBUG_SHOW_SPECIAL
-                      if (DEBUG_SHOW_SPECIAL == 1)
-                        {
                           pointer[0] = current->foreground[0];
                           pointer[1] = current->foreground[1];
                           pointer[2] = current->foreground[2];
-                        }
-                      else if (DEBUG_SHOW_SPECIAL == 2)
-                        {
-                          pointer[0] = current->background[0];
-                          pointer[1] = current->background[1];
-                          pointer[2] = current->background[2];
+#ifdef DEBUG_SHOW_SPECIAL
+                          if (DEBUG_SHOW_SPECIAL == 1)
+                            {
+                              pointer[0] = current->foreground[0];
+                              pointer[1] = current->foreground[1];
+                              pointer[2] = current->foreground[2];
+                            }
+                          else if (DEBUG_SHOW_SPECIAL == 2)
+                            {
+                              pointer[0] = current->background[0];
+                              pointer[1] = current->background[1];
+                              pointer[2] = current->background[2];
+                            }
+                          else
+                            {
+                              pointer[0] = current->alpha;
+                              pointer[1] = current->alpha;
+                              pointer[2] = current->alpha;
+                            }
+                          pointer[3] = 255;
+#else
+                          pointer[3] = current->alpha;
+#endif // DEBUG_SHOW_SPECIAL
+#endif
                         }
                       else
                         {
-                          pointer[0] = current->alpha;
-                          pointer[1] = current->alpha;
-                          pointer[2] = current->alpha;
-                        }
-                      pointer[3] = 255;
-#else
-                      pointer[3] = current->alpha;
-#endif // DEBUG_SHOW_SPECIAL
-#endif
-                    }
-                  else
-                    {
 #ifdef DEBUG_SHOW_SPECIAL
-                      pointer[3] = 0;
+                          pointer[3] = 0;
 #endif
+                        }
                     }
                 }
             }
         }
     }
-#endif // DEBUG_PHASE1
 
-  update_mask (result_layer, mask);
+  update_mask (result_layer, mask, x1, y1, x2, y2);
 }
 
 void
