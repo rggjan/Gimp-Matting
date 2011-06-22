@@ -44,6 +44,8 @@
 #include "stdlib.h"
 #endif
 
+// TODO move slider before painting doesn't work!
+
 #define LAMBDA (10)
 #define SEARCH_RADIUS (10)
 #define MATTING_SQUARED_COLOR_DISTANCE (25)
