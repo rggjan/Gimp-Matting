@@ -1329,6 +1329,8 @@ TileManager        * working_layer)
   gint         tx, ty, x, y;
   guchar      *pointer;
 
+  gint         hash_size, hash_step;
+
   HashEntry   *first_entry = NULL;
   HashEntry   *previous_entry = NULL;
 
@@ -1454,59 +1456,72 @@ TileManager        * working_layer)
 
   // End the list with a null pointer
   previous_entry->next = NULL;
+  hash_size = g_hash_table_size(unknown_hash);
+  hash_step = hash_size / 33;
 
   if (DEBUG_PHASE > 1)
     {
       // Phase 2, loop over values in hash and fill them in
       {
         HashEntry *current = first_entry;
+        gint counter = 0;
+
         state->tx = -1;
         state->ty = -1;
 
         while (current != NULL)
           {
+            counter++;
             search_neighborhood (current, state);
-
             current = current->next;
+
+            if (counter % hash_step == 0)
+              siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33);
           }
       }
-
-      siox_progress_update(progress_callback, progress_data, 0.3);
 
       if (DEBUG_PHASE > 2)
         {
           // Phase 3, get better values from neighbours
           {
             HashEntry *current = first_entry;
+            gint counter = 0;
+
             state->tx = -1;
             state->ty = -1;
 
             while (current != NULL)
               {
+                counter++;
                 compare_neighborhood (current, unknown_hash, state);
-
                 current = current->next;
+
+                if (counter % hash_step == 0)
+                  siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.33);
               }
           }
-          siox_progress_update(progress_callback, progress_data, 0.6);
 
           if (DEBUG_PHASE > 3)
             // Phase 4, get final color values
             {
               HashEntry *current = first_entry;
+              gint counter = 0;
+
               state->tx = -1;
               state->ty = -1;
 
               while (current != NULL)
                 {
+                  counter++;
                   local_smoothing (current, unknown_hash, state);
-
                   current = current->next;
+
+                  if (counter % hash_step == 0)
+                    siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.66);
                 }
             }
         }
     }
-  siox_progress_update(progress_callback, progress_data, 0.9);
 
   // Last phase, fill values from hash back into result layer
   {
@@ -1605,6 +1620,8 @@ TileManager        * working_layer)
   }
 
   g_hash_table_destroy(unknown_hash);
+
+  siox_progress_update(progress_callback, progress_data, 1);  
   update_mask (result_layer, mask, state);
 }
 
