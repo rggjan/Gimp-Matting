@@ -26,10 +26,10 @@
 #include "tile-manager.h"
 #include "siox.h"
 
-#define IMAGE_DEBUG_PPM
+//#define IMAGE_DEBUG_PPM
 
 // Stop after certain phase
-#define DEBUG_PHASE 2
+#define DEBUG_PHASE 3
 
 // 0 = foreground, 1 = background, 2 = alpha
 // #define DEBUG_SHOW_SPECIAL 0
@@ -37,7 +37,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-//#define DEBUG_PREDEFINED_MASK_WRITE TRUE
+#define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -124,7 +124,8 @@ struct _MattingState
 
   gboolean enough_pixels;
 
-  BigCache     big_cache;
+  BigCache big_cache;
+  HashCache hash_cache;
 
   gint x1, y1, x2, y2;
   gint tx, ty;
@@ -455,9 +456,9 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, MattingState *sta
     {
       for (xi = -2; xi <= 2; xi++)
         {
-          // TODO: got a SEGFAULT once!!!
-          // TODO check borders
-          if (GET_PIXEL (state->big_cache, x + xi, y + yi, 3) == my_alpha)
+          if (GET_PIXEL (state->big_cache, x + xi, y + yi, 3) == my_alpha &&
+              state->tx * 64 + x + xi < state->width  && state->tx * 64 + x >= 0 &&
+              state->ty * 64 + y + yi < state->height && state->ty * 64 + y >= 0)
             {
               sum += dist_squared(GET_PIXEL (state->big_cache, x + xi, y + yi, 0),
                                   GET_PIXEL (state->big_cache, x + xi, y + yi, 1),
@@ -471,7 +472,15 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, MattingState *sta
         }
     }
 
-  return sum / num_found;
+  if (num_found == 0)
+    {
+      g_printf("num_found = 0... this should not happen!\n");
+      return 0;
+    }
+  else
+    {
+      return sum / num_found;
+    }
 }
 
 typedef struct
@@ -503,8 +512,7 @@ static void load_hash_cache (GHashTable* unknown_hash, HashCache hash_cache,
 }
 
 static void inline
-compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
-                      HashCache hash_cache, GHashTable* unknown_hash,
+compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash,
                       MattingState *state)
 {
   gint pos_x, pos_y;
@@ -527,12 +535,12 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
   pos_x = pos_x - 64 * tx;
   pos_y = pos_y - 64 * ty;
 
-  if (*current_tx != tx || *current_ty != ty)
+  if (state->tx != tx || state->ty != ty)
     {
-      load_hash_cache (unknown_hash, hash_cache, tx, ty, HASH_CACHE_EXTRA);
+      load_hash_cache (unknown_hash, state->hash_cache, tx, ty, HASH_CACHE_EXTRA);
 
-      *current_tx = tx;
-      *current_ty = ty;
+      state->tx = tx;
+      state->ty = ty;
     }
 
   for (num = 0; num < 3; num++)
@@ -545,12 +553,12 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
     {
       for (xdiff = -HASH_CACHE_EXTRA; xdiff <= HASH_CACHE_EXTRA; xdiff++)
         {
-          current = GET_ENTRY(hash_cache, pos_x + xdiff, pos_y + ydiff);
+          current = GET_ENTRY(state->hash_cache, pos_x + xdiff, pos_y + ydiff);
 
           if (current && current->valid)
             {
               gfloat current_alpha;
-              // TODO: check if this projection is right! do we have to use other color values maybe?
+
               gfloat temp = projection (current->foreground,
                                         current->background,
                                         entry->color,
@@ -591,13 +599,11 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
 
       gint index;
 
-      // TODO check if we have to treat all colors in unit cube
-
       matches = matches > 3 ? 3 : matches;
 
       for (num = 0; num < matches; num++)
         {
-          current = GET_ENTRY(hash_cache, top3[num].x, top3[num].y);
+          current = GET_ENTRY(state->hash_cache, top3[num].x, top3[num].y);
           for (index = 0; index < 3; index++)
             {
               // TODO: check if we should use ints here!
@@ -688,14 +694,7 @@ compare_neighborhood (HashEntry* entry, gint *current_tx, gint* current_ty,
             entry->confidence = exp(-LAMBDA * sqrt(mp));
           }
       }
-    }
-  else
-    {
-      entry->foreground_refined[0] = 255;
-      entry->foreground_refined[1] = 0;
-      entry->foreground_refined[2] = 0;
-      entry->alpha_refined = 255;
-      entry->confidence = 0;
+      entry->valid = TRUE;
     }
 }
 
@@ -1480,9 +1479,9 @@ siox_foreground_extract (MattingState       *state,
 
                       // TODO maybe look this up in image, instead of
                       // saving it redundantly in cache
-                      //entry->color[0] = pointer[0];
-                      //entry->color[1] = pointer[1];
-                      //entry->color[2] = pointer[2];
+                      entry->color[0] = pointer[0];
+                      entry->color[1] = pointer[1];
+                      entry->color[2] = pointer[2];
                       // TODO remove color from entry
 
                       // Linked list creation
@@ -1527,37 +1526,34 @@ siox_foreground_extract (MattingState       *state,
           // Phase 3, get better values from neighbours
           {
             HashEntry *current = first_entry;
-            HashCache hash_cache;
-            gint current_tx = -1;
-            gint current_ty = -1;
+            state->tx = -1;
+            state->ty = -1;
 
             while (current != NULL && current->next.value != 0)
               {
-                compare_neighborhood (current, &current_tx, &current_ty,
-                                      hash_cache, unknown_hash, state);
+                compare_neighborhood (current, unknown_hash, state);
 
                 current = g_hash_table_lookup (unknown_hash, &(current->next));
               }
           }
 
-#ifndef DEBUG_PHASE3
-          // Phase 4, get final color values
-          {
-            HashEntry *current = first_entry;
-            HashCache hash_cache;
-            gint current_tx = -1;
-            gint current_ty = -1;
+          if (DEBUG_PHASE > 3)
+            // Phase 4, get final color values
+            {
+              HashEntry *current = first_entry;
+              HashCache hash_cache;
+              gint current_tx = -1;
+              gint current_ty = -1;
 
-            while (current != NULL && current->next.value != 0)
-              {
-                local_smoothing (current, &current_tx, &current_ty,
-                                 hash_cache, unknown_hash, working_layer, state);
+              while (current != NULL && current->next.value != 0)
+                {
+                  local_smoothing (current, &current_tx, &current_ty,
+                                   hash_cache, unknown_hash, working_layer, state);
 
-                current = g_hash_table_lookup (unknown_hash, &(current->next));
-              }
-          }
+                  current = g_hash_table_lookup (unknown_hash, &(current->next));
+                }
+            }
         }
-#endif
     }
 
   // Last phase, fill values from hash back into result layer
@@ -1626,9 +1622,15 @@ siox_foreground_extract (MattingState       *state,
 #else
             for (i = 0; i < 3; i++)
               {
-                pointer[i] = current->foreground[i];
+                if (DEBUG_PHASE == 3)
+                  pointer[i] = current->foreground_refined[i];
+                else
+                  pointer[i] = current->foreground[i];
               }
-            pointer[3] = current->alpha;
+            if (DEBUG_PHASE == 3)
+              pointer[3] = current->alpha_refined;
+            else
+              pointer[3] = current->alpha;
 #endif
           }
 
