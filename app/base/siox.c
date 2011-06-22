@@ -128,6 +128,8 @@ struct _MattingState
 
   gint x1, y1, x2, y2;
   gint tx, ty;
+
+  gint width, height;
   //HashCache    hash_cache;
 };
 
@@ -389,11 +391,11 @@ static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_po
 }
 
 // evaluate the energy function for found color fg/bg for pixel situated at x/y
-static float
+static inline float
 objective_function (SearchStructure *fg,
                     SearchStructure *bg,
-                    gint x,
-                    gint y,
+                    gint x, gint xmin, gint xmax,
+                    gint y, gint ymin, gint ymax,
                     float* best_alpha,
                     float pfp,
                     MattingState *state)
@@ -405,9 +407,9 @@ objective_function (SearchStructure *fg,
 
   float finalAlpha;
 
-  for (yi = -1; yi < 2; yi++)
+  for (yi = ymin; yi <= ymax; yi++)
     {
-      for (xi = -1; xi < 2; xi++)
+      for (xi = xmin; xi <= ymax; xi++)
         {
           // TODO check borders
           guchar *P = &(GET_PIXEL (state->big_cache, x + xi, y + yi, 0));
@@ -1029,18 +1031,29 @@ search_neighborhood (HashEntry* entry, MattingState *state)
               {
                 if (found[1][background_direction].found)
                   {
-                    float current_alpha;
-                    gfloat temp = objective_function (&(found[0][foreground_direction]),
-                                                      &(found[1][background_direction]),
-                                                      pos_x,
-                                                      pos_y,
-                                                      &current_alpha,
-                                                      pfp,
-                                                      state);
-                    if (temp < min)
+                    float current_alpha, cost;
+                    gint xmin = -1, ymin = -1, xmax = 1, ymax = 1;
+
+                    if (orig_pos_x <= 0)
+                      xmin++;
+                    else if (orig_pos_x >= state->width - 1)
+                      xmax--;
+                    if (orig_pos_y <= 0)
+                      ymin++;
+                    else if (orig_pos_y >= state->height - 1)
+                      ymax++;
+
+                    cost = objective_function (&(found[0][foreground_direction]),
+                                               &(found[1][background_direction]),
+                                               pos_x, xmin, xmax,
+                                               pos_y, ymin, ymax,
+                                               &current_alpha,
+                                               pfp,
+                                               state);
+                    if (cost < min)
                       {
                         best_alpha = current_alpha;
-                        min = temp;
+                        min = cost;
                         minindexf = foreground_direction;
                         minindexb = background_direction;
                       }
@@ -1374,12 +1387,15 @@ siox_foreground_extract (MattingState       *state,
 
   unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
+  state->width = tile_manager_width (mask);
+  state->height = tile_manager_height (mask);
+
   g_return_if_fail (state != NULL);
   g_return_if_fail (mask != NULL && tile_manager_bpp (mask) == 1);
   g_return_if_fail (x1 >= 0);
-  g_return_if_fail (x2 > x1 && x2 <= tile_manager_width (mask));
+  g_return_if_fail (x2 > x1 && x2 <= state->width);
   g_return_if_fail (y1 >= 0);
-  g_return_if_fail (y2 > y1 && y2 <= tile_manager_height (mask));
+  g_return_if_fail (y2 > y1 && y2 <= state->height);
   g_return_if_fail (start_percentage >= 0 && start_percentage <= 1);
   g_return_if_fail (progress_data == NULL || progress_callback != NULL);
 
