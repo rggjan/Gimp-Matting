@@ -29,7 +29,7 @@
 //#define IMAGE_DEBUG_PPM
 
 // Stop after certain phase
-#define DEBUG_PHASE 3
+#define DEBUG_PHASE 4
 
 // 0 = foreground, 1 = background, 2 = alpha
 //#define DEBUG_SHOW_SPECIAL 2
@@ -698,44 +698,45 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash,
 
 static void inline
 calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
-                        gdouble fq[3], gdouble fd[3], gdouble bq[3], gdouble bd[3],
+                        gdouble fq[3], gdouble *fd, gdouble bq[3], gdouble *bd,
                         gdouble *meandiff_q, gdouble *meandiff_d,
                         gdouble *low_freq_alpha_q, gdouble *low_freq_alpha_d,
-                        HashCache hash_cache, BigCache big_cache, gboolean is_middle)
+                        gboolean is_middle, MattingState *state)
 {
-  guchar fg[3], bg[3];
+  guchar *fg, *bg;
   gint i;
   gfloat alpha, confidence;
   gdouble weight;
   HashEntry* current;
 // TODO final_confidence should not get NAN!!!
-  current = GET_ENTRY(hash_cache, x, y);
-  if(current == NULL)
-    {
-      alpha = GET_PIXEL (big_cache, x, y, 3);
-      alpha = (alpha == 255 ? 1 : 0);
 
-      for (i = 0; i < 3; i++)
-        {
-          if (alpha == 1)
-            {
-              fg[i] = GET_PIXEL (big_cache, x, y, i);
-            }
-          else
-            {
-              bg[i] = GET_PIXEL (big_cache, x, y, i);
-            }
-        }
-      confidence = 1;
+  current = GET_ENTRY(state->hash_cache, x, y);
+  if(current == NULL || !current->valid)
+    {
+      alpha = GET_PIXEL (state->big_cache, x, y, 3);
+      if (alpha != 255 && alpha != 0) // We are outside of the image!
+        confidence = 0;
+      else
+        confidence = 1;
+
+      if (current)
+        alpha = 0.5;
+      else
+        alpha = (alpha == 255 ? 1 : 0);
+
+      fg = &GET_PIXEL (state->big_cache, x, y, 0);
+      bg = fg;
     }
   else
     {
       gfloat diff_weight;
-      for (i = 0; i < 3; i++)
-        {
-          fg[i] = current->foreground_refined[i];
-          bg[i] = current->background_refined[i];
-        }
+
+      if (GET_PIXEL (state->big_cache, x, y, 3) != 128)
+        g_printf("Something went wrong! alpha should be 128 here!\n"); // TODO remove
+
+      fg = current->foreground_refined;
+      bg = current->background_refined;
+
       alpha = current->alpha_refined / 255.;
       confidence = current->confidence;
 
@@ -766,22 +767,20 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
 
   for (i = 0; i < 3; i++)
     {
-      gdouble low_freq_weight = confidence * gauss + (current == NULL);
+      gdouble low_freq_weight = confidence * gauss + (current == NULL && confidence == 1);
 
       fq[i] += weight * alpha * fg[i];
-      fd[i] += weight * alpha;
       bq[i] += weight * (1 - alpha) * bg[i];
-      bd[i] += weight * (1 - alpha);
 
       *low_freq_alpha_q += low_freq_weight * alpha;
       *low_freq_alpha_d += low_freq_weight;
     }
+    *bd += weight * (1 - alpha);
+    *fd += weight * alpha;    
 }
 
 static void inline
-local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
-                 HashCache hash_cache, GHashTable* unknown_hash,
-                 TileManager *working_layer, MattingState *state)
+local_smoothing (HashEntry* entry, GHashTable* unknown_hash, MattingState *state)
 {
   gint pos_x, pos_y;
   gint tx, ty;
@@ -789,9 +788,9 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
 
   gint xdiff, ydiff;
   gdouble fq[3] = {0, 0, 0};
-  gdouble fd[3] = {0, 0, 0};
+  gdouble fd = 0;
   gdouble bq[3] = {0, 0, 0};
-  gdouble bd[3] = {0, 0, 0};
+  gdouble bd = 0;
 
   gdouble meandiff_q = 0;
   gdouble meandiff_d = 0;
@@ -809,15 +808,14 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
   pos_x = pos_x - 64 * tx;
   pos_y = pos_y - 64 * ty;
 
-  if (*current_tx != tx || *current_ty != ty)
+  if (state->tx != tx || state->ty != ty)
     {
-      load_hash_cache (unknown_hash, hash_cache, tx, ty, 6);
-//      load_big_cache (working_layer, big_cache, tx, ty, 1);
+      load_hash_cache (unknown_hash, state->hash_cache, tx, ty, 6);
+      load_big_cache (state->pixels, state->result_layer, state->big_cache, tx, ty, 1);
 
-      *current_tx = tx;
-      *current_ty = ty;
+      state->tx = tx;
+      state->ty = ty;
     }
-
 
   for (ydiff = -6; ydiff <= 6; ydiff++)
     {
@@ -826,18 +824,20 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
           calculate_final_colors (GAUSS(xdiff, ydiff),
                                   pos_x + xdiff, pos_y + ydiff,
                                   entry->alpha_refined / 255.,
-                                  fq, fd, bq, bd,
+                                  fq, &fd, bq, &bd,
                                   &meandiff_q, &meandiff_d,
                                   &low_freq_alpha_q, &low_freq_alpha_d,
-                                  hash_cache, state->big_cache,
-                                  xdiff == 0 && ydiff == 0);
+                                  xdiff == 0 && ydiff == 0,
+                                  state);
         }
     }
 
   for (i = 0; i < 3; i++)
     {
-      entry->foreground[i] = fq[i] / fd[i];
-      entry->background[i] = bq[i] / bd[i];
+      if (fd != 0)
+        entry->foreground[i] = fq[i] / fd;
+      if (bd != 0)
+        entry->background[i] = bq[i] / bd;
     }
 
   {
@@ -852,15 +852,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
                                     entry->background[1],
                                     entry->background[2]));
 
-    if (meandiff_d != 0)
-      {
-        gdouble meandiff = meandiff_q / meandiff_d;
-        final_confidence /= meandiff;
-      }
-    else
-      {
-        final_confidence = 1;
-      }
+    gdouble meandiff = meandiff_q / meandiff_d;
+    final_confidence /= meandiff;
 
     if (final_confidence > 1)
       final_confidence = 1;
@@ -877,8 +870,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     if (!(final_confidence <= 1 || final_confidence >= 0))
       g_printf("Problem!: final_confidence: %f\n", final_confidence);
 
-    entry->alpha = (final_confidence * current_alpha + (1 - final_confidence) * low_freq_alpha) * 255;
-    //entry->alpha = current_alpha*255;
+    //entry->alpha = (final_confidence * current_alpha + (1 - final_confidence) * low_freq_alpha) * 255;
+    entry->alpha = current_alpha * 255;
   }
 }
 
@@ -1539,14 +1532,12 @@ siox_foreground_extract (MattingState       *state,
             // Phase 4, get final color values
             {
               HashEntry *current = first_entry;
-              HashCache hash_cache;
-              gint current_tx = -1;
-              gint current_ty = -1;
+              state->tx = -1;
+              state->ty = -1;
 
               while (current != NULL && current->next.value != 0)
                 {
-                  local_smoothing (current, &current_tx, &current_ty,
-                                   hash_cache, unknown_hash, working_layer, state);
+                  local_smoothing (current, unknown_hash, state);
 
                   current = g_hash_table_lookup (unknown_hash, &(current->next));
                 }
@@ -1646,101 +1637,6 @@ siox_foreground_extract (MattingState       *state,
         current = tmp;
       }
   }
-
-  /*
-    for (ty = y1 / 64; ty <= y2 / 64; ty++)
-      {
-        for (tx = x1 / 64; tx <= x2 / 64; tx++)
-          {
-            guint height_tile;
-            guint width_tile;
-
-            tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
-            pointer = tile_data_pointer (tile, 0, 0);
-
-            width_tile = tile_ewidth (tile);
-            height_tile = tile_eheight (tile);
-
-            for (y = 0; y < height_tile; y++)
-              {
-                for (x = 0; x < width_tile; x++, pointer += 4)
-                  {
-                    HashEntry *current;
-                    HashAddress address;
-                    address.coords.x = tx * 64 + x;
-                    address.coords.y = ty * 64 + y;
-
-                    current = g_hash_table_lookup (unknown_hash, &address);
-
-                    if (current != NULL)
-                      {
-  #ifdef DEBUG_PHASE3
-                        pointer[0] = current->foreground_refined[0];
-                        pointer[1] = current->foreground_refined[1];
-                        pointer[2] = current->foreground_refined[2];
-  #ifdef DEBUG_SHOW_SPECIAL
-                        if (DEBUG_SHOW_SPECIAL == 1)
-                          {
-                            pointer[0] = current->foreground_refined[0];
-                            pointer[1] = current->foreground_refined[1];
-                            pointer[2] = current->foreground_refined[2];
-                          }
-                        else if (DEBUG_SHOW_SPECIAL == 2)
-                          {
-                            pointer[0] = current->background_refined[0];
-                            pointer[1] = current->background_refined[1];
-                            pointer[2] = current->background_refined[2];
-                          }
-                        else
-                          {
-                            pointer[0] = current->alpha_refined;
-                            pointer[1] = current->alpha_refined;
-                            pointer[2] = current->alpha_refined;
-                          }
-
-                        pointer[3] = 255;
-  #else
-    pointer[3] = current->alpha_refined;
-  #endif // DEBUG_SHOW_SPECIAL
-  #else
-    pointer[0] = current->foreground[0];
-    pointer[1] = current->foreground[1];
-    pointer[2] = current->foreground[2];
-  #ifdef DEBUG_SHOW_SPECIAL
-    if (DEBUG_SHOW_SPECIAL == 1)
-      {
-        pointer[0] = current->foreground[0];
-        pointer[1] = current->foreground[1];
-        pointer[2] = current->foreground[2];
-      }
-    else if (DEBUG_SHOW_SPECIAL == 2)
-      {
-        pointer[0] = current->background[0];
-        pointer[1] = current->background[1];
-        pointer[2] = current->background[2];
-      }
-    else
-      {
-        pointer[0] = current->alpha;
-        pointer[1] = current->alpha;
-        pointer[2] = current->alpha;
-      }
-    pointer[3] = 255;
-  #else
-    pointer[3] = current->alpha;
-  #endif // DEBUG_SHOW_SPECIAL
-  #endif
-                      }
-                    else
-                      {
-  #ifdef DEBUG_SHOW_SPECIAL
-                        pointer[3] = 0;
-  #endif
-                      }
-                  }
-              }
-          }
-      }*/
 
   update_mask (result_layer, mask, state);
 }
