@@ -28,7 +28,7 @@
 
 //#define IMAGE_DEBUG_PPM
 
-//#define DEBUG_PHASE1
+#define DEBUG_PHASE1
 //#define DEBUG_PHASE2
 //#define DEBUG_PHASE3
 
@@ -38,7 +38,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
+#define DEBUG_PREDEFINED_MASK_WRITE TRUE
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -234,8 +234,8 @@ siox_init (TileManager  *pixels,
 }
 
 static void
-load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
-                gint radius)
+load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
+                gint tx, gint ty, gint radius)
 {
   gint    xdiff;
   gint    ydiff;
@@ -244,21 +244,28 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
   gint    width_tile, height_tile;
 
   Tile   *src_tile;
-  guchar *pointer;
+  Tile   *mask_tile;
+  guchar *src_pointer;
+  guchar *mask_pointer;
 
-  g_return_if_fail (tile_manager_bpp(source) == 4);
+  g_return_if_fail ((tile_manager_bpp(source) == 4 && mask == NULL) ||
+                    (tile_manager_bpp(source) == 3 && tile_manager_bpp(mask) == 1));
 
   for (ydiff = -radius; ydiff <= radius; ydiff++)
     {
       for (xdiff = -radius; xdiff <= radius; xdiff++)
         {
           src_tile = tile_manager_get_at (source, tx + xdiff, ty + ydiff, TRUE, FALSE);
+          if (mask)
+            mask_tile = tile_manager_get_at (mask, tx + xdiff, ty + ydiff, TRUE, FALSE);
+
           width_tile = 0;
           height_tile = 0;
 
           if (src_tile)
             {
-              pointer = tile_data_pointer (src_tile, 0, 0);
+              src_pointer = tile_data_pointer (src_tile, 0, 0);
+              mask_pointer = tile_data_pointer (mask_tile, 0, 0);
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
 
@@ -269,16 +276,25 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
                     {
                       bx = xdiff * 64 + x;
 
-                      GET_PIXEL(big_cache, bx, by, 0) = pointer[0];
-                      GET_PIXEL(big_cache, bx, by, 1) = pointer[1];
-                      GET_PIXEL(big_cache, bx, by, 2) = pointer[2];
-                      GET_PIXEL(big_cache, bx, by, 3) = pointer[3];
+                      GET_PIXEL(big_cache, bx, by, 0) = src_pointer[0];
+                      GET_PIXEL(big_cache, bx, by, 1) = src_pointer[1];
+                      GET_PIXEL(big_cache, bx, by, 2) = src_pointer[2];
+                      GET_PIXEL(big_cache, bx, by, 3) = mask_pointer[0];
 
-                      pointer += 4;
+                      if (mask)
+                        {
+                          src_pointer += 3;
+                          mask_pointer += 1;
+                        }
+                      else
+                        {
+                          src_pointer += 4;
+                        }
                     }
                 }
 
               tile_release (src_tile, FALSE);
+              tile_release (mask_tile, FALSE);
             }
 
           for (y = 0; y < 64; y++)
@@ -288,9 +304,9 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
                 {
                   bx = xdiff * 64 + x;
 
-                  GET_PIXEL(big_cache, bx, by, 0) = 0;
-                  GET_PIXEL(big_cache, bx, by, 1) = 0;
-                  GET_PIXEL(big_cache, bx, by, 2) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 0) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 1) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 2) = 0;
                   GET_PIXEL(big_cache, bx, by, 3) = 128;
                 }
             }
@@ -302,9 +318,9 @@ load_big_cache (TileManager *source, BigCache big_cache, gint tx, gint ty,
                 {
                   bx = xdiff * 64 + x;
 
-                  GET_PIXEL(big_cache, bx, by, 0) = 0;
-                  GET_PIXEL(big_cache, bx, by, 1) = 0;
-                  GET_PIXEL(big_cache, bx, by, 2) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 0) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 1) = 0;
+                  //GET_PIXEL(big_cache, bx, by, 2) = 0;
                   GET_PIXEL(big_cache, bx, by, 3) = 128;
                 }
             }
@@ -785,7 +801,7 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
   if (*current_tx != tx || *current_ty != ty)
     {
       load_hash_cache (unknown_hash, hash_cache, tx, ty, 6);
-      load_big_cache (working_layer, big_cache, tx, ty, 1);
+//      load_big_cache (working_layer, big_cache, tx, ty, 1);
 
       *current_tx = tx;
       *current_ty = ty;
@@ -902,7 +918,7 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 
   if (*current_tx != tx || *current_ty != ty)
     {
-      load_big_cache (layer, big_cache, tx, ty, 3);
+//      load_big_cache (layer, big_cache, tx, ty, 3);
       *current_tx = tx;
       *current_ty = ty;
 
@@ -1282,43 +1298,37 @@ check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* re
   return FALSE;
 }
 
-static inline void
-search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* result)
+static inline guchar
+search_for_neighbours (BigCache big_cache, gint x, gint y, guchar* color)
 {
-  guchar color[3];
-  gint   i, radius, n, alpha;
+  gint   radius, n;
+  guchar alpha;
 
   alpha = GET_PIXEL (big_cache, x, y, 3);
 
   if (alpha != 128)
     {
-      *result = alpha;
-      return;
-    }
-
-  for (i = 0; i < 3; i++)
-    {
-      color[i] = GET_PIXEL (big_cache, x, y, i);
+      return alpha;
     }
 
   for (radius = 0; radius <= SEARCH_RADIUS; radius++)
     {
       for (n = -radius; n < radius; n++)
         {
-          if (check_closeness (color, big_cache, x + radius, y + n, result))
-            return;
+          if (check_closeness (color, big_cache, x + radius, y + n, &alpha))
+            return alpha;
 
-          if (check_closeness (color, big_cache, x - radius, y + n, result))
-            return;
+          if (check_closeness (color, big_cache, x - radius, y + n, &alpha))
+            return alpha;
 
-          if (check_closeness (color, big_cache, x + n, y + radius, result))
-            return;
+          if (check_closeness (color, big_cache, x + n, y + radius, &alpha))
+            return alpha;
 
-          if (check_closeness (color, big_cache, x + n, y - radius, result))
-            return;
+          if (check_closeness (color, big_cache, x + n, y - radius, &alpha))
+            return alpha;
         }
     }
-  *result = alpha;
+    return 128;
 }
 
 void
@@ -1342,8 +1352,6 @@ siox_foreground_extract (SioxState          * state,
 
   gint         tx, ty, x, y;
   guchar      *pointer;
-
-  gboolean     unknown;
 
   HashEntry   *first_entry = NULL;
   HashEntry   *previous_entry = NULL;
@@ -1380,15 +1388,16 @@ siox_foreground_extract (SioxState          * state,
       state->enough_pixels = TRUE;
     }
 
-  initialize_new_layer (state->pixels, working_layer, mask, x1, y1, x2, y2);
-  for (ty = y1/64; ty <= y2/64; ty++)
+  initialize_new_layer (state->pixels, result_layer, mask, x1, y1, x2, y2);
+
+  for (ty = y1 / 64; ty <= y2 / 64; ty++)
     {
-      for (tx = x1/64; tx <= x2/64; tx++)
+      for (tx = x1 / 64; tx <= x2 / 64; tx++)
         {
           guint   height_tile;
           guint   width_tile;
 
-          load_big_cache (working_layer, big_cache, tx, ty, 1);
+          load_big_cache (state->pixels, mask, big_cache, tx, ty, 1);
 
 #ifdef IMAGE_DEBUG_PPM
           {
@@ -1409,13 +1418,13 @@ siox_foreground_extract (SioxState          * state,
             {
               for (x = 0; x < width_tile; x++, pointer += 4)
                 {
+                  guchar alpha;
+
                   pointer[0] = GET_PIXEL (big_cache, x, y, 0);
                   pointer[1] = GET_PIXEL (big_cache, x, y, 1);
                   pointer[2] = GET_PIXEL (big_cache, x, y, 2);
-
-                  search_for_neighbours (big_cache, x, y, pointer + 3);
-
-                  unknown = (GET_PIXEL (big_cache, x, y, 3) == 128);
+                  alpha = search_for_neighbours (big_cache, x, y, pointer);
+                  pointer[3] = alpha;
 
 #ifdef DEBUG_SHOW_SPECIAL
                   if (DEBUG_SHOW_SPECIAL == 3)
@@ -1425,7 +1434,7 @@ siox_foreground_extract (SioxState          * state,
                       pointer[2] = 128;
                     }
 #endif
-                  if (unknown)
+                  if (alpha == 128)
                     {
                       HashEntry *entry = g_slice_new (HashEntry);
 #ifdef DEBUG_SHOW_SPECIAL
@@ -1444,17 +1453,17 @@ siox_foreground_extract (SioxState          * state,
 
                       // TODO maybe look this up in image, instead of
                       // saving it redundantly in cache
-                      entry->color[0] = pointer[0];
-                      entry->color[1] = pointer[1];
-                      entry->color[2] = pointer[2];
+                      //entry->color[0] = pointer[0];
+                      //entry->color[1] = pointer[1];
+                      //entry->color[2] = pointer[2];
+                      // TODO remove color from entry
 
-                      if (previous_entry != NULL)
-                        previous_entry->next = entry->this;
-
-                      previous_entry = entry;
-
+                      // Linked list creation
                       if(first_entry == NULL)
                         first_entry = entry;
+                      if (previous_entry != NULL)
+                        previous_entry->next = entry->this;
+                      previous_entry = entry;
 
                       g_hash_table_insert (unknown_hash, &(entry->this), entry);
                     }
@@ -1528,9 +1537,9 @@ siox_foreground_extract (SioxState          * state,
 #endif
 
   // Last phase, fill values from hash back into result layer
-  for (ty = 0; ty < tiles_y; ty++)
+  for (ty = y1 / 64; ty <= y2 / 64; ty++)
     {
-      for (tx = 0; tx < tiles_x; tx++)
+      for (tx = x1 / 64; tx <= x2 / 64; tx++)
         {
           guint height_tile;
           guint width_tile;
