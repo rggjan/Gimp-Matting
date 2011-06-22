@@ -359,11 +359,11 @@ typedef struct
   gint y;
 } SearchStructure;
 
-// Project the Point P onto the line from A-B.
+// Project the Point P onto the line from B-A.
 // alpha_pointer receives the calculated alpha value between 0 and 1
-// where (0=A, 1=B)
+// where (0=B, 1=A)
 // returns the squared distance of the best projected point to P
-static gfloat projection (guchar A[3], guchar B[3], guchar P[3], float* alpha_pointer)
+static gfloat projection (guchar B[3], guchar A[3], guchar P[3], float* alpha_pointer)
 {
   gfloat ABx = B[0] - A[0];
   gfloat ABy = B[1] - A[1];
@@ -426,7 +426,7 @@ objective_function (SearchStructure *fg,
         }
     }
 
-  ap = pfp + (1 - 2 * pfp) * (1 - finalAlpha);
+  ap = pfp + (1 - 2 * pfp) * finalAlpha;
 
   *best_alpha = finalAlpha;
   return pow(Np, 3) * pow(bg->distance, 4) * pow(fg->distance, 1) * pow(ap, 2);
@@ -557,12 +557,10 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash,
 
           if (current && current->valid)
             {
-              gfloat current_alpha;
-
               gfloat temp = projection (current->foreground,
                                         current->background,
                                         entry->color,
-                                        &current_alpha);
+                                        NULL);
 
               // check if color is better than least best of colors, add the color and sort the list
               if (temp < top3[2].diff)
@@ -669,7 +667,7 @@ compare_neighborhood (HashEntry* entry, GHashTable* unknown_hash,
                          entry->color,
                          &current_alpha);
 
-        entry->alpha_refined = (1 - current_alpha) * 255;
+        entry->alpha_refined = current_alpha * 255;
 
         for (i = 0; i < 3; i++)
           {
@@ -879,8 +877,8 @@ local_smoothing (HashEntry* entry, gint *current_tx, gint* current_ty,
     if (!(final_confidence <= 1 || final_confidence >= 0))
       g_printf("Problem!: final_confidence: %f\n", final_confidence);
 
-    entry->alpha = (final_confidence * (1 - current_alpha) + (1 - final_confidence) * low_freq_alpha) * 255;
-    //entry->alpha = (1-current_alpha)*255;
+    entry->alpha = (final_confidence * current_alpha + (1 - final_confidence) * low_freq_alpha) * 255;
+    //entry->alpha = current_alpha*255;
   }
 }
 
@@ -1077,7 +1075,7 @@ search_neighborhood (HashEntry* entry, MattingState *state)
         entry->background[1] = best_background.color[1];
         entry->background[2] = best_background.color[2];
 
-        entry->alpha = (1 - best_alpha) * 255;
+        entry->alpha = best_alpha * 255;
         entry->valid = TRUE;
 
         entry->sigma_b_squared = calculate_variance (best_background.color, best_background.x, best_background.y, state);
