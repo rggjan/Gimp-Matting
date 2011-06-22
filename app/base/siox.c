@@ -288,7 +288,16 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
             {
               src_pointer = tile_data_pointer (src_tile, 0, 0);
               if (mask)
-                mask_pointer = tile_data_pointer (mask_tile, 0, 0);
+                {
+                  if (!mask_tile)
+                    {
+                      g_printf("Something went wrong! no mask tile!\n");
+                    }
+                  else
+                    {
+                      mask_pointer = tile_data_pointer (mask_tile, 0, 0);
+                    }
+                }
 
               width_tile = tile_ewidth (src_tile);
               height_tile = tile_eheight (src_tile);
@@ -369,18 +378,18 @@ typedef struct
 // alpha_pointer receives the calculated alpha value between 0 and 1
 // where (0=B, 1=A)
 // returns the squared distance of the best projected point to P
-static gfloat projection (guchar B[3], guchar A[3], guchar P[3], float* alpha_pointer)
+static inline gfloat projection (guchar B[3], guchar A[3], guchar P[3], float* alpha_pointer)
 {
-  gfloat ABx = B[0] - A[0];
-  gfloat ABy = B[1] - A[1];
-  gfloat ABz = B[2] - A[2];
+  gint ABx = B[0] - A[0];
+  gint ABy = B[1] - A[1];
+  gint ABz = B[2] - A[2];
 
-  gfloat APx = P[0] - A[0];
-  gfloat APy = P[1] - A[1];
-  gfloat APz = P[2] - A[2];
+  gint APx = P[0] - A[0];
+  gint APy = P[1] - A[1];
+  gint APz = P[2] - A[2];
 
-  gfloat dot_AB = ABx * ABx + ABy * ABy + ABz * ABz;
-  gfloat alpha = (ABx * APx + ABy * APy + ABz * APz) / dot_AB;
+  gint dot_AB = ABx * ABx + ABy * ABy + ABz * ABz;
+  gfloat alpha = (float)(ABx * APx + ABy * APy + ABz * APz) / dot_AB;
 
   gfloat PPx, PPy, PPz;
 
@@ -409,25 +418,20 @@ objective_function (SearchStructure *fg,
 {
   gint xi, yi;
   float ap;
-
-  float Np = 0;
-
   float finalAlpha;
+  float Np = projection (fg->color, bg->color,
+                         &GET_PIXEL (state->big_cache, x, y, 0),
+                         &finalAlpha);
 
   for (yi = ymin; yi <= ymax; yi++)
     {
       for (xi = xmin; xi <= ymax; xi++)
         {
-          // TODO check borders
           guchar *P = &(GET_PIXEL (state->big_cache, x + xi, y + yi, 0));
 
           if (xi != 0 || yi != 0)
             {
               Np += projection (fg->color, bg->color, P, NULL);
-            }
-          else
-            {
-              Np += projection (fg->color, bg->color, P, &finalAlpha);
             }
         }
     }
@@ -861,11 +865,8 @@ local_smoothing (HashEntry* entry, GHashTable* unknown_hash, MattingState *state
 
   {
     gfloat current_alpha, mp;
-
-    if (low_freq_alpha_d == 0)
-      g_printf("this shoud not happen lfad = 0\n");
-
     gdouble low_freq_alpha = low_freq_alpha_q / low_freq_alpha_d;
+    gdouble meandiff;
 
     gdouble final_confidence = sqrt(dist_squared(
                                       entry->foreground[0],
@@ -878,7 +879,7 @@ local_smoothing (HashEntry* entry, GHashTable* unknown_hash, MattingState *state
     if (meandiff_d == 0)
       meandiff_d = 1;
 
-    gdouble meandiff = meandiff_q / meandiff_d;
+    meandiff = meandiff_q / meandiff_d;
     final_confidence /= meandiff;
 
     if (final_confidence > 1)
@@ -912,7 +913,7 @@ search_neighborhood (HashEntry* entry, MattingState *state)
 
   SearchStructure found[2][4];
 
-  guchar prevval[4][3];
+  guchar prevval[4][3] = {{0,0,0},{0,0,0},{0,0,0},{0,0,0}};
   double angle;
   gint permutation[4];
 
@@ -922,14 +923,6 @@ search_neighborhood (HashEntry* entry, MattingState *state)
         {
           found[toggle][direction].found = FALSE;
         }
-    }
-
-  // initialize to original value
-  for (distance = 0; distance < 4; distance++)
-    {
-      prevval[distance][0] = entry->color[0];
-      prevval[distance][1] = entry->color[1];
-      prevval[distance][2] = entry->color[2];
     }
 
   // Load coordinates from entry
@@ -1100,65 +1093,6 @@ search_neighborhood (HashEntry* entry, MattingState *state)
 
     //printf("values: %i %i %i | %i %i %i | %i %i %i | %i %i %i\n", values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
   }
-}
-
-static void
-initialize_new_layer (TileManager* destination_layer,
-                      TileManager* mask_layer,
-                      MattingState *state)
-{
-  PixelRegion src, dest, mask;
-  PixelRegionIterator *pr;
-  gint row, col;
-  gint width, height;
-
-  width = state->x2 - state->x1;
-  height = state->y2 - state->y1;
-
-  pixel_region_init (&src, state->pixels, state->x1, state->y1, width, height, FALSE);
-  pixel_region_init (&dest, destination_layer, state->x1, state->y1, width, height, TRUE);
-  pixel_region_init (&mask, mask_layer, state->x1, state->y1, width, height, FALSE);
-
-  g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
-
-  for (pr = pixel_regions_register (3, &src, &dest, &mask);
-       pr != NULL;
-       pr = pixel_regions_process (pr))
-    {
-      const guchar *mask_data = mask.data;
-      const guchar *src_data = src.data;
-      guchar *dest_data = dest.data;
-
-      for (row = 0; row < src.h; row++)
-        {
-          const guchar *m = mask_data;
-          const guchar *s = src_data;
-          guchar *d = dest_data;
-
-          for (col = 0; col < src.w; col++, s += src.bytes, d += dest.bytes, ++m) // TODO check if 4 is ok
-            {
-              d[0] = s[0];
-              d[1] = s[1];
-              d[2] = s[2];
-              if (m[0] == MATTING_USER_FOREGROUND)
-                {
-                  d[3] = 255;
-                }
-              else if (m[0] == MATTING_USER_BACKGROUND)
-                {
-                  d[3] = 0;
-                }
-              else
-                {
-                  d[3] = 128;
-                }
-            }
-
-          src_data += src.rowstride;
-          dest_data += dest.rowstride;
-          mask_data += mask.rowstride;
-        }
-    }
 }
 
 static gfloat
@@ -1527,7 +1461,7 @@ siox_foreground_extract (MattingState       *state,
         state->tx = -1;
         state->ty = -1;
 
-        while (current != NULL && current->next.value != 0)
+        while (current != NULL)
           {
             search_neighborhood (current, state);
 
@@ -1543,7 +1477,7 @@ siox_foreground_extract (MattingState       *state,
             state->tx = -1;
             state->ty = -1;
 
-            while (current != NULL && current->next.value != 0)
+            while (current != NULL)
               {
                 compare_neighborhood (current, unknown_hash, state);
 
@@ -1578,7 +1512,7 @@ siox_foreground_extract (MattingState       *state,
     gint tx, ty, pos_x, pos_y;
     gint i;
 
-    while (current != NULL && current->next.value != 0)
+    while (current != NULL)
       {
 #ifndef DEBUG_SHOW_SPECIAL
         if (current->valid)
@@ -1659,8 +1593,12 @@ siox_foreground_extract (MattingState       *state,
         g_slice_free(HashEntry, current);
         current = tmp;
       }
+
+    if (tile != NULL)
+      tile_release(tile, TRUE);
   }
 
+  g_hash_table_destroy(unknown_hash);
   update_mask (result_layer, mask, state);
 }
 
