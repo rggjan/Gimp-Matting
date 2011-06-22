@@ -119,6 +119,10 @@ struct _MattingState
   gboolean enough_pixels;
 
   BigCache     big_cache;
+  gint x1;
+  gint y1;
+  gint x2;
+  gint y2;
   //HashCache    hash_cache;
 };
 
@@ -394,7 +398,7 @@ objective_function (SearchStructure *fg,
         {
           // TODO check borders
           guchar *P = &(GET_PIXEL (state->big_cache, x + xi, y + yi, 0));
-          
+
           if (xi != 0 || yi != 0)
             {
               Np += projection (fg->color, bg->color, P, NULL);
@@ -1061,22 +1065,21 @@ search_neighborhood (HashEntry* entry, gint *current_tx, gint *current_ty,
 }
 
 static void
-initialize_new_layer (TileManager* source_layer,
-                      TileManager* destination_layer,
+initialize_new_layer (TileManager* destination_layer,
                       TileManager* mask_layer,
-                      gint x1, gint y1, gint x2, gint y2)
+                      MattingState *state)
 {
   PixelRegion src, dest, mask;
   PixelRegionIterator *pr;
   gint row, col;
-  int width, height;
+  gint width, height;
 
-  width = x2 - x1;
-  height = y2 - y1;
+  width = state->x2 - state->x1;
+  height = state->y2 - state->y1;
 
-  pixel_region_init (&src, source_layer, x1, y1, width, height, FALSE);
-  pixel_region_init (&dest, destination_layer, x1, y1, width, height, TRUE);
-  pixel_region_init (&mask, mask_layer, x1, y1, width, height, FALSE);
+  pixel_region_init (&src, state->pixels, state->x1, state->y1, width, height, FALSE);
+  pixel_region_init (&dest, destination_layer, state->x1, state->y1, width, height, TRUE);
+  pixel_region_init (&mask, mask_layer, state->x1, state->y1, width, height, FALSE);
 
   g_return_if_fail (src.bytes == 3 && dest.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
@@ -1121,19 +1124,17 @@ initialize_new_layer (TileManager* source_layer,
 }
 
 static gfloat
-mask_percent_unknown (TileManager* mask_layer, gint x1, gint y1, gint x2, gint y2)
+mask_percent_unknown (TileManager* mask_layer, MattingState* state)
 {
   PixelRegion mask;
   PixelRegionIterator *pr;
   gint row, col;
-  gint pixels_unknown = 0, pixels_total = (x2 - x1) * (y2 - y1);
+  gint pixels_unknown = 0;
+  guint width = state->x2 - state->x1;
+  guint height = state->y2 - state->y1;
+  guint pixels_total = width * height;
 
-  int width, height;
-
-  width = x2 - x1;
-  height = y2 - y1;
-
-  pixel_region_init (&mask, mask_layer, x1, y1, width, height, TRUE);
+  pixel_region_init (&mask, mask_layer, state->x1, state->y1, width, height, TRUE);
 
   if (mask.bytes != 1)
     return 1;
@@ -1215,18 +1216,18 @@ read_write_mask (TileManager* mask_layer, gboolean write)
 static void
 update_mask (TileManager* result_layer,
              TileManager* mask_layer,
-             gint x1, gint y1, gint x2, gint y2)
+             MattingState *state)
 {
   PixelRegion result, mask;
   PixelRegionIterator *pr;
   gint row, col;
-  int width, height;
+  gint width, height;
 
-  width = x2 - x1;
-  height = y2 - y1; // TODO give this as argument
+  width = state->x2 - state->x1;
+  height = state->y2 - state->y1; // TODO give this as argument
 
-  pixel_region_init (&result, result_layer, x1, y1, width, height, FALSE);
-  pixel_region_init (&mask, mask_layer, x1, y1, width, height, TRUE);
+  pixel_region_init (&result, result_layer, state->x1, state->y1, width, height, FALSE);
+  pixel_region_init (&mask, mask_layer, state->x1, state->y1, width, height, TRUE);
 
   g_return_if_fail (result.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
@@ -1369,9 +1370,14 @@ siox_foreground_extract (MattingState       *state,
   read_write_mask (mask, DEBUG_PREDEFINED_MASK_WRITE);
 #endif
 
+  state->x1 = x1;
+  state->y1 = y1;
+  state->x2 = x2;
+  state->y2 = y2;
+
   if (!state->enough_pixels)
     {
-      gfloat unknown_percent = mask_percent_unknown (mask, x1, y1, x2, y2);
+      gfloat unknown_percent = mask_percent_unknown (mask, state);
 
       g_printf("Unknown pixels: %f (%f)\n", unknown_percent, start_percentage);
       if (unknown_percent > (1 - start_percentage))
@@ -1381,7 +1387,7 @@ siox_foreground_extract (MattingState       *state,
       state->enough_pixels = TRUE;
     }
 
-  initialize_new_layer (state->pixels, result_layer, mask, x1, y1, x2, y2);
+  initialize_new_layer (result_layer, mask, state);
 
   for (ty = y1 / 64; ty <= y2 / 64; ty++)
     {
@@ -1671,7 +1677,7 @@ siox_foreground_extract (MattingState       *state,
           }
       }*/
 
-  update_mask (result_layer, mask, x1, y1, x2, y2);
+  update_mask (result_layer, mask, state);
 }
 
 void

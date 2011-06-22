@@ -43,7 +43,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
                                   GimpForegroundExtractMode  mode,
                                   GimpDrawable              *mask,
                                   GimpProgress              *progress)
-{ 
+{
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
   g_return_if_fail (mode == GIMP_FOREGROUND_EXTRACT_SIOX);
 
@@ -65,7 +65,7 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
       gimp_drawable_foreground_extract_siox_done (state);
     }
   */
-  
+
 
 }
 
@@ -80,8 +80,8 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
-  //MattingState    *state;
-  
+  //SioxState    *state;
+
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
   g_return_val_if_fail (gimp_item_is_attached (GIMP_ITEM (drawable)), NULL);
@@ -93,11 +93,11 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   //gimp_pixel_rgn_get_pixel()
   //gimp_pixel_rgn_get_pixel
 /*
-  
+
     PixelRegion region;
   gpointer    pr;
   gint        row, col;
-  
+
     pixel_region_init (&region, gimp_drawable_get_tiles(drawable), 0, 0, 300, 300, TRUE);
 
   g_printerr ("fgextract step #2 -> %d clusters\n", region.bytes);
@@ -123,11 +123,11 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
           data += region.rowstride;
         }
     }
-  
-  
+
+
   gimp_drawable_update (drawable, 0, 0, 300, 300);
 */
-  
+
   if (gimp_drawable_is_indexed (drawable))
     colormap = gimp_drawable_get_colormap (drawable);
 
@@ -226,7 +226,7 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
         }
     }
 
-  
+
   g_print("This is a test 2\n");
   printf("abc");*/
 /* end */
