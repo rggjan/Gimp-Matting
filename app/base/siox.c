@@ -1375,7 +1375,7 @@ TileManager        * working_layer)
     {
       gfloat unknown_percent = mask_percent_unknown (mask, state);
 
-      g_printf("Unknown pixels: %f (%f)\n", unknown_percent, start_percentage);
+      //g_printf("Unknown pixels: %f (%f)\n", unknown_percent, start_percentage);
       if (unknown_percent > (1 - start_percentage))
         {
           return;

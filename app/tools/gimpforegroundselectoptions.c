@@ -38,7 +38,6 @@
 enum
 {
   PROP_0,
-  PROP_ANTIALIAS,
   PROP_CONTIGUOUS,
   PROP_BACKGROUND,
   PROP_STROKE_WIDTH,
@@ -72,13 +71,6 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
 
   object_class->set_property = gimp_foreground_select_options_set_property;
   object_class->get_property = gimp_foreground_select_options_get_property;
-
-  /*  override the antialias default value from GimpSelectionOptions  */
-  GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_ANTIALIAS,
-                                    "antialias",
-                                    N_("Smooth edges"),
-                                    FALSE,
-                                    GIMP_PARAM_STATIC_STRINGS);
 
   GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_CONTIGUOUS,
                                     "contiguous",
@@ -152,10 +144,6 @@ gimp_foreground_select_options_set_property (GObject      *object,
 
   switch (property_id)
     {
-    case PROP_ANTIALIAS:
-      GIMP_SELECTION_OPTIONS (object)->antialias = g_value_get_boolean (value);
-      break;
-
     case PROP_CONTIGUOUS:
       options->contiguous = g_value_get_boolean (value);
       break;
@@ -208,10 +196,6 @@ gimp_foreground_select_options_get_property (GObject    *object,
 
   switch (property_id)
     {
-    case PROP_ANTIALIAS:
-      g_value_set_boolean (value, GIMP_SELECTION_OPTIONS (object)->antialias);
-      break;
-
     case PROP_CONTIGUOUS:
       g_value_set_boolean (value, options->contiguous);
       break;
@@ -258,7 +242,7 @@ GtkWidget *
 gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
 {
   GObject   *config = G_OBJECT (tool_options);
-  GtkWidget *vbox   = gimp_selection_options_gui (tool_options);
+  GtkWidget *vbox   = gimp_tool_options_gui (tool_options);
   GtkWidget *hbox;
   GtkWidget *button;
   GtkWidget *frame;
@@ -270,9 +254,6 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
   GtkObject *adj;
   gchar     *title;
   gint       row = 0;
-
-  gtk_widget_set_sensitive (GIMP_SELECTION_OPTIONS (tool_options)->antialias_toggle,
-                            FALSE);
 
   /*  single / multiple objects  */
   button = gimp_prop_check_button_new (config, "contiguous", _("Contiguous"));
