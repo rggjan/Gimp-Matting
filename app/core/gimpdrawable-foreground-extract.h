@@ -21,28 +21,26 @@
 
 /*  general API (as seen from the PDB)  */
 
-void       gimp_drawable_foreground_extract (GimpDrawable              *drawable,
-                                             GimpForegroundExtractMode  mode,
-                                             GimpDrawable              *mask,
-                                             GimpProgress              *progress);
+void gimp_drawable_foreground_extract (GimpDrawable              *drawable,
+                                       GimpForegroundExtractMode  mode,
+                                       GimpDrawable              *mask,
+                                       GimpProgress              *progress);
 
-/*  SIOX specific API  */
+/*  MATTING specific API  */
 
-MattingState * gimp_drawable_foreground_extract_siox_init   (GimpDrawable *drawable,
-                                                          gint          x,
-                                                          gint          y,
-                                                          gint          width,
-                                                          gint          height);
-void        gimp_drawable_foreground_extract_siox  (GimpDrawable       *mask,
-						    GimpLayer          *result_layer,
-						    GimpLayer          *working_layer,
-                                                    MattingState          *state,
-                                                    SioxRefinementType  refinemane,
-                                                    gfloat start_percentage,
-                                                    const gdouble       sensitivity[3],
-                                                    gboolean            multiblob,
-                                                    GimpProgress       *progress);
-void        gimp_drawable_foreground_extract_siox_done (MattingState      *state);
+MattingState *gimp_drawable_foreground_extract_matting_init (GimpDrawable *drawable,
+    gint          x,
+    gint          y,
+    gint          width,
+    gint          height);
+
+void gimp_drawable_foreground_extract_matting (GimpDrawable       *mask,
+    GimpLayer    *result_layer,
+    MattingState *state,
+    gfloat        start_percentage,
+    GimpProgress *progress);
+
+void gimp_drawable_foreground_extract_matting_done (MattingState      *state);
 
 
 #endif  /*  __GIMP_DRAWABLE_FOREGROUND_EXTRACT_H__  */

@@ -650,7 +650,7 @@ render_image_tile_fault (RenderInfo *info)
           info->full_scaley >= 2.0 )
 
       /* or when we're scaling a 1bpp texture, this code-path seems to be
-       * invoked when interacting with SIOX which uses a palletized drawable
+       * invoked when interacting with MATTING which uses a palletized drawable
        */
       || (tile_manager_bpp (info->src_tiles)==1)
       )

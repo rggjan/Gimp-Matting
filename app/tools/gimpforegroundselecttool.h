@@ -44,11 +44,8 @@ struct _GimpForegroundSelectTool
   GArray             *stroke;
   GList              *strokes;
   GimpChannel        *mask;
-  MattingState          *state;
-  SioxRefinementType  refinement;
-  
+  MattingState       *state;
   GimpLayer          *result_layer;
-  GimpLayer          *working_layer;
 };
 
 struct _GimpForegroundSelectToolClass

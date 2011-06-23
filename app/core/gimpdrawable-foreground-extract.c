@@ -24,7 +24,7 @@
 #include "core-types.h"
 
 #include "base/pixel-region.h"
-#include "base/siox.h"
+#include "base/matting.h"
 #include "base/tile-manager.h"
 
 
@@ -44,89 +44,47 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
                                   GimpDrawable              *mask,
                                   GimpProgress              *progress)
 {
+  //MattingState* state;
+
   g_return_if_fail (GIMP_IS_DRAWABLE (mask));
-  g_return_if_fail (mode == GIMP_FOREGROUND_EXTRACT_SIOX);
+  g_return_if_fail (mode == GIMP_FOREGROUND_EXTRACT_MATTING);
+  g_return_if_fail (FALSE); // NOT IMPLEMENTED YET
+  return;
 
-  /*state =
-    gimp_drawable_foreground_extract_siox_init (drawable,
-                                                0, 0,
-                                                gimp_item_get_width  (GIMP_ITEM (mask)),
-                                                gimp_item_get_height (GIMP_ITEM (mask)));
+  /*
+    state =
+      gimp_drawable_foreground_extract_matting_init (drawable,
+          0, 0,
+          gimp_item_get_width  (GIMP_ITEM (mask)),
+          gimp_item_get_height (GIMP_ITEM (mask)));
 
-  if (state)
-    {
-      gimp_drawable_foreground_extract_siox (mask, state,
-                                             SIOX_REFINEMENT_RECALCULATE,
-                                             SIOX_DEFAULT_SMOOTHNESS,
-                                             sensitivity,
-                                             FALSE,
-                                             progress);
+    if (state)
+      {
+        gimp_drawable_foreground_extract_matting (mask, state,
+            MATTING_REFINEMENT_RECALCULATE,
+            MATTING_DEFAULT_SMOOTHNESS,
+            sensitivity,
+            FALSE,
+            progress);
 
-      gimp_drawable_foreground_extract_siox_done (state);
-    }
-  */
-
-
+        gimp_drawable_foreground_extract_matting_done (state);
+      }*/
 }
 
 MattingState *
-gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
-                                            gint          x,
-                                            gint          y,
-                                            gint          width,
-                                            gint          height)
+gimp_drawable_foreground_extract_matting_init (GimpDrawable *drawable,
+    gint          x,
+    gint          y,
+    gint          width,
+    gint          height)
 {
   const guchar *colormap = NULL;
   gboolean      intersect;
   gint          offset_x;
   gint          offset_y;
-  //SioxState    *state;
-
 
   g_return_val_if_fail (GIMP_IS_DRAWABLE (drawable), NULL);
   g_return_val_if_fail (gimp_item_is_attached (GIMP_ITEM (drawable)), NULL);
-
-  //tile_manager_get
-  //tile_manager_get_tile()
-  //pixel_region_get_col()
-  //gimp_tile_cache_size()
-  //gimp_pixel_rgn_get_pixel()
-  //gimp_pixel_rgn_get_pixel
-/*
-
-    PixelRegion region;
-  gpointer    pr;
-  gint        row, col;
-
-    pixel_region_init (&region, gimp_drawable_get_tiles(drawable), 0, 0, 300, 300, TRUE);
-
-  g_printerr ("fgextract step #2 -> %d clusters\n", region.bytes);
-  g_print("This is a test\n");
-  printf("abc");
-  for (pr = pixel_regions_register (1, &region);
-       pr != NULL; pr = pixel_regions_process (pr))
-    {
-      guchar *data = region.data;
-
-      for (row = 0; row < region.h; row++)
-        {
-          guchar *d = data;
-
-          // everything that fits the mask is in the image
-          for (col = 0; col < region.w; col++, d+=3)
-            {
-              d[0]=0;
-              d[1]=255;
-              d[2]=0;
-            }
-
-          data += region.rowstride;
-        }
-    }
-
-
-  gimp_drawable_update (drawable, 0, 0, 300, 300);
-*/
 
   if (gimp_drawable_is_indexed (drawable))
     colormap = gimp_drawable_get_colormap (drawable);
@@ -147,21 +105,17 @@ gimp_drawable_foreground_extract_siox_init (GimpDrawable *drawable,
   if (! intersect)
     return NULL;
 
-  return siox_init (gimp_drawable_get_tiles (drawable), colormap,
-                    offset_x, offset_y,
-                    x, y, width, height);
+  return matting_init (gimp_drawable_get_tiles (drawable), colormap,
+                       offset_x, offset_y,
+                       x, y, width, height);
 }
 
 void
-gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
-                                       GimpLayer          *result_layer,
-                                       GimpLayer          *working_layer,
-                                       MattingState          *state,
-                                       SioxRefinementType  refinement,
-                                       gfloat              start_percentage,
-                                       const gdouble       sensitivity[3],
-                                       gboolean            multiblob,
-                                       GimpProgress       *progress)
+gimp_drawable_foreground_extract_matting (GimpDrawable       *mask,
+    GimpLayer          *result_layer,
+    MattingState        *state,
+    gfloat              start_percentage,
+    GimpProgress       *progress)
 {
   gint x1, y1;
   gint x2, y2;
@@ -188,57 +142,25 @@ gimp_drawable_foreground_extract_siox (GimpDrawable       *mask,
       y2 = gimp_item_get_height (GIMP_ITEM (mask));
     }
 
-
-  siox_foreground_extract (state, refinement,
-                           gimp_drawable_get_tiles (mask), x1, y1, x2, y2,
-                           start_percentage, sensitivity, multiblob,
-                           (SioxProgressFunc) gimp_progress_set_value,
-                           progress,
-                           gimp_drawable_get_tiles(GIMP_DRAWABLE(result_layer)),
-                           gimp_drawable_get_tiles(GIMP_DRAWABLE(working_layer)));
+  matting_foreground_extract (state,
+                              gimp_drawable_get_tiles (mask), x1, y1, x2, y2,
+                              start_percentage,
+                              (MattingProgressFunc) gimp_progress_set_value,
+                              progress,
+                              gimp_drawable_get_tiles(GIMP_DRAWABLE(result_layer)));
 
 
   if (progress)
     gimp_progress_end (progress);
-
-/* start */
-
-
-/*
-  pixel_region_init (&region, gimp_drawable_get_tiles(mask), 0, 0, 300, 300, TRUE);
-
-  for (pr = pixel_regions_register (1, &region);
-       pr != NULL; pr = pixel_regions_process (pr))
-    {
-      guchar *data = region.data;
-
-      for (row = 0; row < region.h; row++)
-        {
-          guchar *d = data;
-
-          // everything that fits the mask is in the image
-          for (col = 0; col < region.w; col++, d++)
-            {
-              *d = col*2;
-            }
-
-          data += region.rowstride;
-        }
-    }
-
-
-  g_print("This is a test 2\n");
-  printf("abc");*/
-/* end */
 
   gimp_drawable_update (GIMP_DRAWABLE(result_layer), x1, y1, x2, y2);
   gimp_drawable_update (mask, x1, y1, x2, y2);
 }
 
 void
-gimp_drawable_foreground_extract_siox_done (MattingState *state)
+gimp_drawable_foreground_extract_matting_done (MattingState *state)
 {
   g_return_if_fail (state != NULL);
 
-  siox_done (state);
+  matting_done (state);
 }

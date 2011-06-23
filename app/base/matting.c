@@ -24,7 +24,7 @@
 #include "tile.h"
 
 #include "tile-manager.h"
-#include "siox.h"
+#include "matting.h"
 
 //#define IMAGE_DEBUG_PPM
 
@@ -39,8 +39,8 @@
 // undefined for normal mode
 // #define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
-//#define CAN_USE_ORIGINAL_COLORS
-//#define HIGH_WEIGHT_FG_BG
+#define CAN_USE_ORIGINAL_COLORS
+#define HIGH_WEIGHT_FG_BG
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -139,14 +139,13 @@ struct _MattingState
   gint tx, ty;
 
   gint width, height;
-  //HashCache    hash_cache;
 };
 
 /* Progressbar update callback */
 static inline void
-siox_progress_update (SioxProgressFunc  progress_callback,
-                      gpointer          progress_data,
-                      gdouble           value)
+matting_progress_update (MattingProgressFunc  progress_callback,
+                         gpointer             progress_data,
+                         gdouble              value)
 {
   if (progress_data)
     progress_callback (progress_data, value);
@@ -235,14 +234,14 @@ static void debug_cache (const char* filename, BigCache cache, int radius)
 #endif
 
 MattingState *
-siox_init (TileManager  *pixels,
-           const guchar *colormap,
-           gint          offset_x,
-           gint          offset_y,
-           gint          x,
-           gint          y,
-           gint          width,
-           gint          height)
+matting_init (TileManager  *pixels,
+              const guchar *colormap,
+              gint          offset_x,
+              gint          offset_y,
+              gint          x,
+              gint          y,
+              gint          width,
+              gint          height)
 {
   MattingState *state;
 
@@ -291,14 +290,9 @@ load_big_cache (TileManager *source, TileManager *mask, BigCache big_cache,
               src_pointer = tile_data_pointer (src_tile, 0, 0);
               if (mask)
                 {
-                  if (!mask_tile)
-                    {
-                      g_printf("Something went wrong! no mask tile!\n");
-                    }
-                  else
-                    {
-                      mask_pointer = tile_data_pointer (mask_tile, 0, 0);
-                    }
+                  g_return_if_fail(mask_tile);
+
+                  mask_pointer = tile_data_pointer (mask_tile, 0, 0);
                 }
 
               width_tile = tile_ewidth (src_tile);
@@ -486,8 +480,7 @@ static gfloat calculate_variance (guchar P[3], gint x, gint y, MattingState *sta
 
   if (num_found == 0)
     {
-      g_printf("num_found = 0... this should not happen!\n");
-      return 0;
+      g_return_val_if_reached(0);
     }
   else
     {
@@ -750,8 +743,7 @@ calculate_final_colors (gfloat gauss, gint x, gint y, gfloat alpha_orig,
     {
       gfloat diff_weight;
 
-      if (GET_PIXEL (state->big_cache, x, y, 3) != 128)
-        g_printf("Something went wrong! alpha should be 128 here!\n"); // TODO remove
+      g_return_if_fail (GET_PIXEL (state->big_cache, x, y, 3) == 128);
 
       fg = current->foreground_refined;
       bg = current->background_refined;
@@ -915,7 +907,10 @@ search_neighborhood (HashEntry* entry, MattingState *state)
 
   SearchStructure found[2][4];
 
-  guchar prevval[4][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+  guchar prevval[4][3] =
+  {
+    {0}
+  };
   double angle;
   gint permutation[4];
 
@@ -987,9 +982,9 @@ search_neighborhood (HashEntry* entry, MattingState *state)
               a = GET_PIXEL (state->big_cache, xtmp, ytmp, 3);
 
               gradients[direction] += sqrt(dist_squared(prevval[direction][0],
-              prevval[direction][1],
-              prevval[direction][2],
-              r, g, b));
+                                           prevval[direction][1],
+                                           prevval[direction][2],
+                                           r, g, b));
 
               prevval[direction][0] = r;
               prevval[direction][1] = g;
@@ -1000,7 +995,7 @@ search_neighborhood (HashEntry* entry, MattingState *state)
               for (toggle = 0; toggle < 2; toggle++)
                 {
                   if (a == (toggle == 0 ? 255 : 0) &&
-                  !found[toggle][direction].found)
+                      !found[toggle][direction].found)
                     {
                       if (gradients[direction] < min_gradients[toggle])
                         min_gradients[toggle] = gradients[direction];
@@ -1052,12 +1047,12 @@ search_neighborhood (HashEntry* entry, MattingState *state)
                       ymax++;
 
                     cost = objective_function (&(found[0][foreground_direction]),
-                    &(found[1][background_direction]),
-                    pos_x, xmin, xmax,
-                    pos_y, ymin, ymax,
-                    &current_alpha,
-                    pfp,
-                    state);
+                                               &(found[1][background_direction]),
+                                               pos_x, xmin, xmax,
+                                               pos_y, ymin, ymax,
+                                               &current_alpha,
+                                               pfp,
+                                               state);
                     if (cost < min)
                       {
                         best_alpha = current_alpha;
@@ -1098,7 +1093,8 @@ search_neighborhood (HashEntry* entry, MattingState *state)
 }
 
 static gfloat
-mask_percent_unknown (TileManager* mask_layer, MattingState* state)
+mask_percent_unknown (TileManager* mask_layer,
+                      MattingState* state)
 {
   PixelRegion mask;
   PixelRegionIterator *pr;
@@ -1114,8 +1110,8 @@ mask_percent_unknown (TileManager* mask_layer, MattingState* state)
     return 1;
 
   for (pr = pixel_regions_register (1, &mask);
-  pr != NULL;
-  pr = pixel_regions_process (pr))
+       pr != NULL;
+       pr = pixel_regions_process (pr))
     {
       guchar *mask_data = mask.data;
 
@@ -1162,8 +1158,8 @@ read_write_mask (TileManager* mask_layer, gboolean write)
   g_return_if_fail (mask.bytes == 1); // TODO check if indexed etc...
 
   for (pr = pixel_regions_register (1, &mask);
-  pr != NULL;
-  pr = pixel_regions_process (pr))
+       pr != NULL;
+       pr = pixel_regions_process (pr))
     {
       guchar *mask_data = mask.data;
 
@@ -1189,8 +1185,8 @@ read_write_mask (TileManager* mask_layer, gboolean write)
 
 static void
 update_mask (TileManager* result_layer,
-TileManager* mask_layer,
-MattingState *state)
+             TileManager* mask_layer,
+             MattingState *state)
 {
   PixelRegion result, mask;
   PixelRegionIterator *pr;
@@ -1206,8 +1202,8 @@ MattingState *state)
   g_return_if_fail (result.bytes == 4 && mask.bytes == 1); // TODO check if indexed etc...
 
   for (pr = pixel_regions_register (2, &result, &mask);
-  pr != NULL;
-  pr = pixel_regions_process (pr))
+       pr != NULL;
+       pr = pixel_regions_process (pr))
     {
       const guchar *result_data = result.data;
       guchar *mask_data = mask.data;
@@ -1222,17 +1218,12 @@ MattingState *state)
               guchar mask;
               mask = m[0];
               if (mask != MATTING_USER_FOREGROUND &&
-              mask != MATTING_USER_BACKGROUND)
+                  mask != MATTING_USER_BACKGROUND)
                 {
                   guchar result = r[3];
-                  //if (result > ==)
-                  /*
-                    m[0] = MATTING_ALGO_FOREGROUND;
-                  else
-                    m[0] = MATTING_ALGO_BACKGROUND;*/
                   if (result == MATTING_USER_FOREGROUND)
                     result--;
-                    if (result == MATTING_USER_BACKGROUND)
+                  if (result == MATTING_USER_BACKGROUND)
                     result++;
                   m[0] = result;
                 }
@@ -1315,20 +1306,16 @@ search_for_neighbours (gint x, gint y, guchar* color, MattingState *state)
 }
 
 void
-siox_foreground_extract (MattingState       *state,
-SioxRefinementType  refinement,
-TileManager        * mask,
-gint                x1,
-gint                y1,
-gint                x2,
-gint                y2,
-gfloat              start_percentage,
-const gdouble       sensitivity[3],
-gboolean            multiblob,
-SioxProgressFunc    progress_callback,
-gpointer            progress_data,
-TileManager        * result_layer,
-TileManager        * working_layer)
+matting_foreground_extract (MattingState       *state,
+                            TileManager        *mask,
+                            gint                x1,
+                            gint                y1,
+                            gint                x2,
+                            gint                y2,
+                            gfloat              start_percentage,
+                            MattingProgressFunc progress_callback,
+                            gpointer            progress_data,
+                            TileManager        *result_layer)
 {
   Tile        *tile;
 
@@ -1341,8 +1328,6 @@ TileManager        * working_layer)
   HashEntry   *previous_entry = NULL;
 
   static       GHashTable *unknown_hash = NULL;
-
-  unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
   state->width = tile_manager_width (mask);
   state->height = tile_manager_height (mask);
@@ -1383,7 +1368,7 @@ TileManager        * working_layer)
       state->enough_pixels = TRUE;
     }
 
-  //initialize_new_layer (result_layer, mask, state);
+  unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
   for (ty = y1 / 64; ty <= y2 / 64; ty++)
     {
@@ -1482,7 +1467,7 @@ TileManager        * working_layer)
             current = current->next;
 
             if (counter % hash_step == 0)
-              siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33);
+              matting_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33);
           }
       }
 
@@ -1503,7 +1488,7 @@ TileManager        * working_layer)
                 current = current->next;
 
                 if (counter % hash_step == 0)
-                  siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.33);
+                  matting_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.33);
               }
           }
 
@@ -1519,11 +1504,13 @@ TileManager        * working_layer)
               while (current != NULL)
                 {
                   counter++;
-                  local_smoothing (current, unknown_hash, state);
+                  if (current->valid)
+                    local_smoothing (current, unknown_hash, state);
+
                   current = current->next;
 
                   if (counter % hash_step == 0)
-                    siox_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.66);
+                    matting_progress_update(progress_callback, progress_data, (float)counter / hash_size * 0.33 + 0.66);
                 }
             }
         }
@@ -1627,12 +1614,12 @@ TileManager        * working_layer)
 
   g_hash_table_destroy(unknown_hash);
 
-  siox_progress_update(progress_callback, progress_data, 1);  
+  matting_progress_update(progress_callback, progress_data, 1);
   update_mask (result_layer, mask, state);
 }
 
 void
-siox_done (MattingState * state)
+matting_done (MattingState * state)
 {
   g_return_if_fail (state != NULL);
 

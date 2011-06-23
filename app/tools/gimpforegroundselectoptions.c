@@ -25,7 +25,7 @@
 
 #include "tools-types.h"
 
-#include "base/siox.h"
+#include "base/matting.h"
 
 #include "widgets/gimpwidgets-utils.h"
 
@@ -38,15 +38,11 @@
 enum
 {
   PROP_0,
-  PROP_CONTIGUOUS,
+  PROP_CONTINUOUS,
   PROP_DRAW_MODE,
   PROP_STROKE_WIDTH,
   PROP_START_PERCENTAGE,
   PROP_MASK_COLOR,
-  PROP_EXPANDED,
-  PROP_SENSITIVITY_L,
-  PROP_SENSITIVITY_A,
-  PROP_SENSITIVITY_B
 };
 
 
@@ -72,9 +68,9 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
   object_class->set_property = gimp_foreground_select_options_set_property;
   object_class->get_property = gimp_foreground_select_options_get_property;
 
-  GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_CONTIGUOUS,
-                                    "contiguous",
-                                    N_("Select a single contiguous area"),
+  GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_CONTINUOUS,
+                                    "continuous",
+                                    N_("Do continuous updating of the mask"),
                                     TRUE,
                                     GIMP_PARAM_STATIC_STRINGS);
 
@@ -105,29 +101,6 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
                                  GIMP_TYPE_CHANNEL_TYPE,
                                  GIMP_BLUE_CHANNEL,
                                  GIMP_PARAM_STATIC_STRINGS);
-
-  GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_EXPANDED,
-                                    "expanded", NULL,
-                                    FALSE,
-                                    0);
-
-  GIMP_CONFIG_INSTALL_PROP_DOUBLE (object_class, PROP_SENSITIVITY_L,
-                                   "sensitivity-l",
-                                   N_("Sensitivity for brightness component"),
-                                   0.0, 10.0, SIOX_DEFAULT_SENSITIVITY_L,
-                                   GIMP_PARAM_STATIC_STRINGS);
-
-  GIMP_CONFIG_INSTALL_PROP_DOUBLE (object_class, PROP_SENSITIVITY_A,
-                                   "sensitivity-a",
-                                   N_("Sensitivity for red/green component"),
-                                   0.0, 10.0, SIOX_DEFAULT_SENSITIVITY_A,
-                                   GIMP_PARAM_STATIC_STRINGS);
-
-  GIMP_CONFIG_INSTALL_PROP_DOUBLE (object_class, PROP_SENSITIVITY_B,
-                                   "sensitivity-b",
-                                   N_("Sensitivity for yellow/blue component"),
-                                   0.0, 10.0, SIOX_DEFAULT_SENSITIVITY_B,
-                                   GIMP_PARAM_STATIC_STRINGS);
 }
 
 static void
@@ -145,8 +118,8 @@ gimp_foreground_select_options_set_property (GObject      *object,
 
   switch (property_id)
     {
-    case PROP_CONTIGUOUS:
-      options->contiguous = g_value_get_boolean (value);
+    case PROP_CONTINUOUS:
+      options->continuous = g_value_get_boolean (value);
       break;
 
     case PROP_DRAW_MODE:
@@ -165,22 +138,6 @@ gimp_foreground_select_options_set_property (GObject      *object,
       options->mask_color = g_value_get_enum (value);
       break;
 
-    case PROP_EXPANDED:
-      options->expanded = g_value_get_boolean (value);
-      break;
-
-    case PROP_SENSITIVITY_L:
-      options->sensitivity[0] = g_value_get_double (value);
-      break;
-
-    case PROP_SENSITIVITY_A:
-      options->sensitivity[1] = g_value_get_double (value);
-      break;
-
-    case PROP_SENSITIVITY_B:
-      options->sensitivity[2] = g_value_get_double (value);
-      break;
-
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -197,8 +154,8 @@ gimp_foreground_select_options_get_property (GObject    *object,
 
   switch (property_id)
     {
-    case PROP_CONTIGUOUS:
-      g_value_set_boolean (value, options->contiguous);
+    case PROP_CONTINUOUS:
+      g_value_set_boolean (value, options->continuous);
       break;
 
     case PROP_DRAW_MODE:
@@ -215,22 +172,6 @@ gimp_foreground_select_options_get_property (GObject    *object,
 
     case PROP_MASK_COLOR:
       g_value_set_enum (value, options->mask_color);
-      break;
-
-    case PROP_EXPANDED:
-      g_value_set_boolean (value, options->expanded);
-      break;
-
-    case PROP_SENSITIVITY_L:
-      g_value_set_double (value, options->sensitivity[0]);
-      break;
-
-    case PROP_SENSITIVITY_A:
-      g_value_set_double (value, options->sensitivity[1]);
-      break;
-
-    case PROP_SENSITIVITY_B:
-      g_value_set_double (value, options->sensitivity[2]);
       break;
 
     default:
@@ -252,12 +193,10 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
   GtkWidget *menu;
   GtkWidget *inner_frame;
   GtkWidget *table;
-  GtkObject *adj;
   gchar     *title;
-  gint       row = 0;
 
   /*  single / multiple objects  */
-  button = gimp_prop_check_button_new (config, "contiguous", _("Contiguous"));
+  button = gimp_prop_check_button_new (config, "continuous", _("Continuous"));
   gtk_box_pack_start (GTK_BOX (vbox), button, FALSE, FALSE, 0);
   gtk_widget_show (button);
 
@@ -266,9 +205,6 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
                            gimp_get_mod_string (GDK_CONTROL_MASK));
 
   frame = gimp_prop_enum_radio_frame_new (config, "draw-mode", title, -1, -1);
-  /*frame = gimp_prop_boolean_radio_frame_new (config, "background", title,
-                                             _("Mark background"),
-                                             _("Mark foreground"));*/
   g_free (title);
 
   gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
@@ -313,7 +249,6 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
   gtk_widget_show (table);
 
   scale = gimp_prop_hscale_new (config, "start-percentage", 0.1, 1.0, 0);
-  gtk_range_set_update_policy (GTK_RANGE (scale), GTK_UPDATE_DELAYED);
   gtk_scale_set_value_pos (GTK_SCALE (scale), GTK_POS_RIGHT);
   gimp_table_attach_aligned (GTK_TABLE (table), 0, 0,
                              _("Start Percentage:"), 0.0, 0.5, scale, 2, FALSE);
@@ -323,36 +258,6 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
                                        GIMP_RED_CHANNEL, GIMP_BLUE_CHANNEL);
   gimp_table_attach_aligned (GTK_TABLE (table), 0, 1,
                              _("Preview color:"), 0.0, 0.5, menu, 2, FALSE);
-
-  /*  granularity  */
-  frame = gimp_prop_expander_new (config, "expanded", _("Color Sensitivity"));
-  gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
-  gtk_widget_show (frame);
-
-  inner_frame = gimp_frame_new ("<expander>");
-  gtk_container_add (GTK_CONTAINER (frame), inner_frame);
-  gtk_widget_show (inner_frame);
-
-  table = gtk_table_new (3, 3, FALSE);
-  gtk_table_set_col_spacings (GTK_TABLE (table), 2);
-  gtk_table_set_row_spacings (GTK_TABLE (table), 2);
-  gtk_container_add (GTK_CONTAINER (inner_frame), table);
-  gtk_widget_show (table);
-
-  adj = gimp_prop_opacity_entry_new (config, "sensitivity-l",
-                                     GTK_TABLE (table), 0, row++, "L");
-  gtk_range_set_update_policy (GTK_RANGE (GIMP_SCALE_ENTRY_SCALE (adj)),
-                               GTK_UPDATE_DELAYED);
-
-  adj = gimp_prop_opacity_entry_new (config, "sensitivity-a",
-                                     GTK_TABLE (table), 0, row++, "a");
-  gtk_range_set_update_policy (GTK_RANGE (GIMP_SCALE_ENTRY_SCALE (adj)),
-                               GTK_UPDATE_DELAYED);
-
-  adj = gimp_prop_opacity_entry_new (config, "sensitivity-b",
-                                     GTK_TABLE (table), 0, row++, "b");
-  gtk_range_set_update_policy (GTK_RANGE (GIMP_SCALE_ENTRY_SCALE (adj)),
-                               GTK_UPDATE_DELAYED);
 
   return vbox;
 }

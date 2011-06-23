@@ -122,15 +122,4 @@ typedef enum  /*< skip >*/
   GIMP_NEGATIVE_CONVOL     /*  add 127 to values           */
 } GimpConvolutionType;
 
-typedef enum  /*< pdb-skip, skip >*/
-{
-  SIOX_REFINEMENT_NO_CHANGE          = 0,
-  SIOX_REFINEMENT_ADD_FOREGROUND     = (1 << 0),
-  SIOX_REFINEMENT_ADD_BACKGROUND     = (1 << 1),
-  SIOX_REFINEMENT_CHANGE_SENSITIVITY = (1 << 2),
-  SIOX_REFINEMENT_CHANGE_START_PERCENTAGE  = (1 << 3),
-  SIOX_REFINEMENT_CHANGE_MULTIBLOB   = (1 << 4),
-  SIOX_REFINEMENT_RECALCULATE        = 0xFF
-} SioxRefinementType;
-
 #endif /* __BASE_ENUMS_H__ */

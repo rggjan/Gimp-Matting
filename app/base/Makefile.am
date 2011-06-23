@@ -50,8 +50,8 @@ libappbase_a_SOURCES = \
 	pixel-region.h		\
 	pixel-surround.c	\
 	pixel-surround.h	\
-	siox.c			\
-	siox.h			\
+	matting.c		\
+	matting.h		\
 	temp-buf.c		\
 	temp-buf.h		\
 	threshold.c		\

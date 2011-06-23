@@ -102,8 +102,8 @@ package Gimp::CodeGen::enums;
     GimpForegroundExtractMode =>
 	{ contig => 1,
 	  header => 'libgimpbase/gimpbaseenums.h',
-	  symbols => [ qw(GIMP_FOREGROUND_EXTRACT_SIOX) ],
-	  mapping => { GIMP_FOREGROUND_EXTRACT_SIOX => '0' }
+	  symbols => [ qw(GIMP_FOREGROUND_EXTRACT_MATTING) ],
+	  mapping => { GIMP_FOREGROUND_EXTRACT_MATTING => '0' }
 	},
     GimpGradientType =>
 	{ contig => 1,
