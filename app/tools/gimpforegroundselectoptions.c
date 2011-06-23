@@ -39,7 +39,7 @@ enum
 {
   PROP_0,
   PROP_CONTIGUOUS,
-  PROP_BACKGROUND,
+  PROP_DRAW_MODE,
   PROP_STROKE_WIDTH,
   PROP_START_PERCENTAGE,
   PROP_MASK_COLOR,
@@ -78,12 +78,13 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
                                     TRUE,
                                     GIMP_PARAM_STATIC_STRINGS);
 
-  GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_BACKGROUND,
-                                    "background",
-                                    N_("Paint over areas to mark color values for "
-                                       "inclusion or exclusion from selection"),
-                                    FALSE,
-                                    GIMP_PARAM_STATIC_STRINGS);
+  GIMP_CONFIG_INSTALL_PROP_ENUM (object_class, PROP_DRAW_MODE,
+                                 "draw-mode",
+                                  N_("Paint over areas to mark color values for "
+                                  "inclusion or exclusion from selection"),
+                                 GIMP_TYPE_MATTING_DRAW_MODE,
+                                 GIMP_MATTING_DRAW_MODE_FOREGROUND,
+                                 GIMP_PARAM_STATIC_STRINGS);
 
   GIMP_CONFIG_INSTALL_PROP_INT (object_class, PROP_STROKE_WIDTH,
                                 "stroke-width",
@@ -148,8 +149,8 @@ gimp_foreground_select_options_set_property (GObject      *object,
       options->contiguous = g_value_get_boolean (value);
       break;
 
-    case PROP_BACKGROUND:
-      options->background = g_value_get_boolean (value);
+    case PROP_DRAW_MODE:
+      options->draw_mode = g_value_get_enum (value);
       break;
 
     case PROP_STROKE_WIDTH:
@@ -200,8 +201,8 @@ gimp_foreground_select_options_get_property (GObject    *object,
       g_value_set_boolean (value, options->contiguous);
       break;
 
-    case PROP_BACKGROUND:
-      g_value_set_boolean (value, options->background);
+    case PROP_DRAW_MODE:
+      g_value_set_enum (value, options->draw_mode);
       break;
 
     case PROP_STROKE_WIDTH:
@@ -264,9 +265,10 @@ gimp_foreground_select_options_gui (GimpToolOptions *tool_options)
   title = g_strdup_printf (_("Interactive refinement  (%s)"),
                            gimp_get_mod_string (GDK_CONTROL_MASK));
 
-  frame = gimp_prop_boolean_radio_frame_new (config, "background", title,
+  frame = gimp_prop_enum_radio_frame_new (config, "draw-mode", title, -1, -1);
+  /*frame = gimp_prop_boolean_radio_frame_new (config, "background", title,
                                              _("Mark background"),
-                                             _("Mark foreground"));
+                                             _("Mark foreground"));*/
   g_free (title);
 
   gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);

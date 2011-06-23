@@ -58,7 +58,7 @@
 typedef struct
 {
   gint         width;
-  gboolean     background;
+  GimpMattingDrawMode draw_mode;
   gint         num_points;
   GimpVector2 *points;
 } FgSelectStroke;
@@ -193,7 +193,7 @@ gimp_foreground_select_tool_init (GimpForegroundSelectTool *fg_select)
 
   gimp_tool_control_set_action_value_2 (tool->control,
                                         "tools/tools-foreground-select-brush-size-set");
-  
+
   fg_select->idle_id = 0;
   fg_select->stroke  = NULL;
   fg_select->strokes = NULL;
@@ -342,10 +342,16 @@ gimp_foreground_select_tool_modifier_key (GimpTool        *tool,
 
       options = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (tool);
 
-      g_object_set (options,
-                    "background", ! options->background,
-                    NULL);
-    }
+      if (options->draw_mode == GIMP_MATTING_DRAW_MODE_FOREGROUND)
+        g_object_set (options,
+                      "draw-mode", GIMP_MATTING_DRAW_MODE_BACKGROUND,
+                      NULL);
+
+      if (options->draw_mode == GIMP_MATTING_DRAW_MODE_BACKGROUND)
+        g_object_set (options,
+                      "draw-mode", GIMP_MATTING_DRAW_MODE_FOREGROUND,
+                      NULL);
+  }
 }
 
 static void
@@ -362,7 +368,7 @@ gimp_foreground_select_tool_cursor_update (GimpTool         *tool,
 
       options = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (tool);
 
-      gimp_tool_control_set_toggled (tool->control, options->background);
+      gimp_tool_control_set_toggled (tool->control, options->draw_mode);
 
       switch (GIMP_SELECTION_TOOL (tool)->function)
         {
@@ -562,7 +568,7 @@ gimp_foreground_select_tool_draw (GimpDrawTool *draw_tool)
                               (const GimpVector2 *) fg_select->stroke->data,
                               fg_select->stroke->len,
                               GIMP_CONTEXT (options),
-                              (options->background ?
+                              (options->draw_mode == GIMP_MATTING_DRAW_MODE_BACKGROUND ?
                                GIMP_ACTIVE_COLOR_BACKGROUND :
                                GIMP_ACTIVE_COLOR_FOREGROUND),
                               options->stroke_width);
@@ -762,7 +768,7 @@ gimp_foreground_select_tool_set_mask (GimpForegroundSelectTool *fg_select,
       gimp_tool_control_set_toggle_tool_cursor (tool->control,
                                                 GIMP_TOOL_CURSOR_ERASER);
 
-      gimp_tool_control_set_toggled (tool->control, options->background);
+      gimp_tool_control_set_toggled (tool->control, options->draw_mode);
     }
   else
     {
@@ -782,17 +788,17 @@ gimp_foreground_select_tool_apply (GimpForegroundSelectTool *fg_select,
   GimpTool             *tool    = GIMP_TOOL (fg_select);
   GimpSelectionOptions *options = GIMP_SELECTION_TOOL_GET_OPTIONS (tool);
   GimpImage            *image   = gimp_display_get_image (display);
-  
+
   g_return_if_fail (fg_select->mask != NULL);
   g_return_if_fail (fg_select->result_layer != NULL);
   g_return_if_fail (fg_select->working_layer != NULL);
-    
+
   /*gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_EDIT_PASTE,
                                _("Extract Foreground"));
 
   gimp_image_add_layer (image, fg_select->result_layer,
                         NULL, 0, FALSE);
-  
+
   gimp_image_undo_group_end (image);
 */
 
@@ -825,7 +831,7 @@ gimp_foreground_select_tool_apply (GimpForegroundSelectTool *fg_select,
                                options->feather_radius,
                                options->feather_radius);*/
 
-  
+
   gimp_tool_control (tool, GIMP_TOOL_ACTION_HALT, display);
 
   gimp_image_flush (image);
@@ -861,7 +867,9 @@ gimp_foreground_select_tool_stroke (GimpChannel    *mask,
                             0.0, NULL);
   gimp_scan_convert_compose_value (scan_convert,
                                    gimp_drawable_get_tiles (GIMP_DRAWABLE (mask)),
-                                   0, 0, stroke->background ? MATTING_USER_BACKGROUND : MATTING_USER_FOREGROUND);
+                                   0, 0, stroke->draw_mode == GIMP_MATTING_DRAW_MODE_FOREGROUND ?
+                                   MATTING_USER_FOREGROUND : (stroke->draw_mode == GIMP_MATTING_DRAW_MODE_BACKGROUND ?
+                                   MATTING_USER_BACKGROUND : MATTING_ALGO_UNDEFINED));
   gimp_scan_convert_free (scan_convert);
 }
 
@@ -877,7 +885,7 @@ gimp_foreground_select_tool_push_stroke (GimpForegroundSelectTool    *fg_select,
 
   stroke = g_slice_new (FgSelectStroke);
 
-  stroke->background = options->background;
+  stroke->draw_mode = options->draw_mode;
   stroke->width      = ROUND ((gdouble) options->stroke_width / shell->scale_y);
   stroke->num_points = fg_select->stroke->len;
   stroke->points     = (GimpVector2 *) g_array_free (fg_select->stroke, FALSE);
@@ -886,9 +894,9 @@ gimp_foreground_select_tool_push_stroke (GimpForegroundSelectTool    *fg_select,
 
   fg_select->strokes = g_list_append (fg_select->strokes, stroke);
 
-  fg_select->refinement |= (stroke->background ?
+  /*fg_select->refinement |= (stroke->draw_mode ?
                             SIOX_REFINEMENT_ADD_BACKGROUND :
-                            SIOX_REFINEMENT_ADD_FOREGROUND);
+                            SIOX_REFINEMENT_ADD_FOREGROUND);*/
 }
 
 static gboolean

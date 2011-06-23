@@ -94,6 +94,16 @@ typedef enum
   GIMP_RECT_SELECT_MODE_FIXED_RATIO  /*< desc="Fixed aspect ratio" >*/
 } GimpRectSelectMode;
 
+#define GIMP_TYPE_MATTING_DRAW_MODE (gimp_matting_draw_mode_get_type ())
+
+GType gimp_matting_draw_mode_get_type (void) G_GNUC_CONST;
+
+typedef enum
+{
+  GIMP_MATTING_DRAW_MODE_FOREGROUND,
+  GIMP_MATTING_DRAW_MODE_BACKGROUND,
+  GIMP_MATTING_DRAW_MODE_UNKNOWN,
+} GimpMattingDrawMode;
 
 #define GIMP_TYPE_TRANSFORM_TYPE (gimp_transform_type_get_type ())
 

@@ -38,7 +38,7 @@ struct _GimpForegroundSelectOptions
   GimpSelectionOptions  parent_instance;
 
   gboolean              contiguous;
-  gboolean              background;
+  GimpMattingDrawMode   draw_mode;
   gint                  stroke_width;
   gfloat                start_percentage;
   GimpChannelType       mask_color;
