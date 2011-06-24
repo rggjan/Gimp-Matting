@@ -80,7 +80,7 @@ const gfloat gauss[13][13] =
 
 typedef union
 {
-  guint32 value;
+  //guint32 value;
   struct
   {
     guint16 x; // TODO assert x not bigger than this!
@@ -92,7 +92,7 @@ struct HashEntry_;
 
 struct HashEntry_
 {
-  guchar color[3]; // TODO remove
+  guchar color[3];
 
   guchar foreground[3];
   guchar background[3];
@@ -1244,14 +1244,14 @@ static inline gboolean
 check_closeness (guchar color[3], BigCache big_cache, gint x, gint y, guchar* result)
 {
   guchar value;
-  gint   color_distance_sum;
-  gint   color_distance;
-  gint   i;
 
   value = GET_PIXEL (big_cache, x, y, 3);
 
   if (value == MATTING_USER_FOREGROUND || value == MATTING_USER_BACKGROUND)
     {
+      gint   color_distance_sum;
+      gint   color_distance;
+      gint   i;
       color_distance_sum = 0;
       for (i = 0; i < 3; i++)
         {
