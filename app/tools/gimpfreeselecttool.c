@@ -20,8 +20,6 @@
 
 #include "config.h"
 
-#include <string.h>
-
 #include <gegl.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
@@ -32,7 +30,6 @@
 #include "tools-types.h"
 
 #include "core/gimp-utils.h"
-#include "core/gimpchannel.h"
 #include "core/gimpchannel-select.h"
 #include "core/gimpimage.h"
 #include "core/gimplayer-floating-sel.h"
@@ -47,7 +44,6 @@
 #include "gimptoolcontrol.h"
 
 #include "gimp-intl.h"
-
 
 #define POINT_GRAB_THRESHOLD_SQ SQR (GIMP_TOOL_HANDLE_SIZE_CIRCLE / 2)
 #define POINT_SHOW_THRESHOLD_SQ SQR (GIMP_TOOL_HANDLE_SIZE_CIRCLE * 7)
@@ -478,7 +474,7 @@ gimp_free_select_tool_add_point (GimpFreeSelectTool *fst,
       priv->max_n_points += N_ITEMS_PER_ALLOC;
 
       priv->points = g_realloc (priv->points,
-                                    sizeof (GimpVector2) * priv->max_n_points);
+                                sizeof (GimpVector2) * priv->max_n_points);
     }
 
   priv->points[priv->n_points].x = x;
@@ -1501,7 +1497,8 @@ gimp_free_select_tool_draw (GimpDrawTool *draw_tool)
   gboolean                   handles_wants_to_show = FALSE;
   GimpCoords                 coords                = { priv->last_coords.x,
                                                        priv->last_coords.y,
-                                                       /* pad with 0 */ };
+                                                       /* pad with 0 */
+                                                     };
   if (! tool->display)
     return;
 

@@ -40,7 +40,6 @@ struct _GimpForegroundSelectTool
   GimpFreeSelectTool  parent_instance;
 
   GimpCoords          last_coords;
-  guint               idle_id;
   GArray             *stroke;
   GList              *strokes;
   GimpChannel        *mask;

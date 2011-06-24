@@ -25,7 +25,7 @@
 
 #include "tools-types.h"
 
-#include "base/matting.h"
+//#include "base/matting.h"
 
 #include "widgets/gimpwidgets-utils.h"
 
@@ -33,7 +33,6 @@
 #include "gimptooloptions-gui.h"
 
 #include "gimp-intl.h"
-
 
 enum
 {
