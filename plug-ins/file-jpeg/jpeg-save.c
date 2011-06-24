@@ -53,13 +53,14 @@
 
 
 /* See bugs #63610 and #61088 for a discussion about the quality settings */
-#define DEFAULT_QUALITY          85.0
+#define DEFAULT_QUALITY          90.0
 #define DEFAULT_SMOOTHING        0.0
 #define DEFAULT_OPTIMIZE         TRUE
-#define DEFAULT_PROGRESSIVE      FALSE
+#define DEFAULT_PROGRESSIVE      TRUE
 #define DEFAULT_BASELINE         TRUE
-#define DEFAULT_SUBSMP           JPEG_SUPSAMPLING_2x2_1x1_1x1
+#define DEFAULT_SUBSMP           JPEG_SUBSAMPLING_1x1_1x1_1x1
 #define DEFAULT_RESTART          0
+#define DEFAULT_RESTART_MCU_ROWS 16
 #define DEFAULT_DCT              0
 #define DEFAULT_PREVIEW          FALSE
 #define DEFAULT_EXIF             TRUE
@@ -399,11 +400,11 @@ save_image (const gchar  *filename,
   cinfo.optimize_coding = jsvals.optimize;
 
   subsampling = (gimp_drawable_is_rgb (drawable_ID) ?
-                 jsvals.subsmp : JPEG_SUPSAMPLING_1x1_1x1_1x1);
+                 jsvals.subsmp : JPEG_SUBSAMPLING_1x1_1x1_1x1);
 
   /*  smoothing is not supported with nonstandard sampling ratios  */
-  if (subsampling != JPEG_SUPSAMPLING_2x1_1x1_1x1 &&
-      subsampling != JPEG_SUPSAMPLING_1x2_1x1_1x1)
+  if (subsampling != JPEG_SUBSAMPLING_2x1_1x1_1x1 &&
+      subsampling != JPEG_SUBSAMPLING_1x2_1x1_1x1)
     {
       cinfo.smoothing_factor = (gint) (jsvals.smoothing * 100);
     }
@@ -415,7 +416,7 @@ save_image (const gchar  *filename,
 
   switch (subsampling)
     {
-    case JPEG_SUPSAMPLING_2x2_1x1_1x1:
+    case JPEG_SUBSAMPLING_2x2_1x1_1x1:
     default:
       cinfo.comp_info[0].h_samp_factor = 2;
       cinfo.comp_info[0].v_samp_factor = 2;
@@ -425,7 +426,7 @@ save_image (const gchar  *filename,
       cinfo.comp_info[2].v_samp_factor = 1;
       break;
 
-    case JPEG_SUPSAMPLING_2x1_1x1_1x1:
+    case JPEG_SUBSAMPLING_2x1_1x1_1x1:
       cinfo.comp_info[0].h_samp_factor = 2;
       cinfo.comp_info[0].v_samp_factor = 1;
       cinfo.comp_info[1].h_samp_factor = 1;
@@ -434,7 +435,7 @@ save_image (const gchar  *filename,
       cinfo.comp_info[2].v_samp_factor = 1;
       break;
 
-    case JPEG_SUPSAMPLING_1x1_1x1_1x1:
+    case JPEG_SUBSAMPLING_1x1_1x1_1x1:
       cinfo.comp_info[0].h_samp_factor = 1;
       cinfo.comp_info[0].v_samp_factor = 1;
       cinfo.comp_info[1].h_samp_factor = 1;
@@ -443,7 +444,7 @@ save_image (const gchar  *filename,
       cinfo.comp_info[2].v_samp_factor = 1;
       break;
 
-    case JPEG_SUPSAMPLING_1x2_1x1_1x1:
+    case JPEG_SUBSAMPLING_1x2_1x1_1x1:
       cinfo.comp_info[0].h_samp_factor = 1;
       cinfo.comp_info[0].v_samp_factor = 2;
       cinfo.comp_info[1].h_samp_factor = 1;
@@ -936,7 +937,7 @@ save_dialog (void)
                     G_CALLBACK (make_preview),
                     NULL);
 
-  restart_markers_label = gtk_label_new (_("Frequency (rows):"));
+  restart_markers_label = gtk_label_new (_("Interval (MCU rows):"));
   gtk_misc_set_alignment (GTK_MISC (restart_markers_label), 1.0, 0.5);
   gtk_table_attach (GTK_TABLE (table), restart_markers_label, 4, 5, 1, 2,
                     GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
@@ -945,7 +946,8 @@ save_dialog (void)
   /*pg.scale_data = scale_data;*/
   pg.restart = restart_markers_scale = spinbutton =
     gimp_spin_button_new (&pg.scale_data,
-                          (jsvals.restart == 0) ? 1 : jsvals.restart,
+                          ((jsvals.restart == 0) ?
+                           DEFAULT_RESTART_MCU_ROWS : jsvals.restart),
                           1.0, 64.0, 1.0, 1.0, 0, 1.0, 0);
   gtk_table_attach (GTK_TABLE (table), spinbutton, 5, 6, 1, 2,
                     GTK_FILL, GTK_FILL, 0, 0);
@@ -1084,14 +1086,14 @@ save_dialog (void)
   gtk_widget_show (label);
 
   pg.subsmp =
-    combo = gimp_int_combo_box_new (_("1x1,1x1,1x1 (best quality)"),
-                                    JPEG_SUPSAMPLING_1x1_1x1_1x1,
-                                    _("2x1,1x1,1x1 (4:2:2)"),
-                                    JPEG_SUPSAMPLING_2x1_1x1_1x1,
-                                    _("1x2,1x1,1x1"),
-                                    JPEG_SUPSAMPLING_1x2_1x1_1x1,
-                                    _("2x2,1x1,1x1 (smallest file)"),
-                                    JPEG_SUPSAMPLING_2x2_1x1_1x1,
+    combo = gimp_int_combo_box_new (_("4:4:4 (best quality)"),
+                                    JPEG_SUBSAMPLING_1x1_1x1_1x1,
+                                    _("4:2:2 horizontal (chroma halved)"),
+                                    JPEG_SUBSAMPLING_2x1_1x1_1x1,
+                                    _("4:2:2 vertical (chroma halved)"),
+                                    JPEG_SUBSAMPLING_1x2_1x1_1x1,
+                                    _("4:2:0 (chroma quartered)"),
+                                    JPEG_SUBSAMPLING_2x2_1x1_1x1,
                                     NULL);
   gtk_table_attach (GTK_TABLE (table), combo, 3, 6, 2, 3,
                     GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
@@ -1113,7 +1115,7 @@ save_dialog (void)
   else
     {
       gimp_int_combo_box_set_active (GIMP_INT_COMBO_BOX (combo),
-                                     JPEG_SUPSAMPLING_1x1_1x1_1x1);
+                                     JPEG_SUBSAMPLING_1x1_1x1_1x1);
 
       gtk_widget_set_sensitive (combo, FALSE);
     }
@@ -1400,8 +1402,8 @@ subsampling_changed (GtkWidget *combo,
 
   /*  smoothing is not supported with nonstandard sampling ratios  */
   gimp_scale_entry_set_sensitive (entry,
-                                  jsvals.subsmp != JPEG_SUPSAMPLING_2x1_1x1_1x1 &&
-                                  jsvals.subsmp != JPEG_SUPSAMPLING_1x2_1x1_1x1);
+                                  jsvals.subsmp != JPEG_SUBSAMPLING_2x1_1x1_1x1 &&
+                                  jsvals.subsmp != JPEG_SUBSAMPLING_1x2_1x1_1x1);
 
   make_preview ();
 }

@@ -244,6 +244,7 @@ typedef struct _GimpSessionInfoAux           GimpSessionInfoAux;
 typedef struct _GimpSessionInfoBook          GimpSessionInfoBook;
 typedef struct _GimpSessionInfoDock          GimpSessionInfoDock;
 typedef struct _GimpSessionInfoDockable      GimpSessionInfoDockable;
+typedef struct _GimpSessionManaged           GimpSessionManaged;
 
 
 /*  structs  */
@@ -260,20 +261,23 @@ typedef struct _GimpDialogFactoryEntry       GimpDialogFactoryEntry;
 
 /*  function types  */
 
-typedef void     (* GimpActionGroupSetupFunc)     (GimpActionGroup *group);
-typedef void     (* GimpActionGroupUpdateFunc)    (GimpActionGroup *group,
-                                                   gpointer         data);
+typedef GtkWidget * (* GimpDialogRestoreFunc)        (GimpDialogFactory *factory,
+                                                      GdkScreen         *screen,
+                                                      GimpSessionInfo   *info);
+typedef void        (* GimpActionGroupSetupFunc)     (GimpActionGroup   *group);
+typedef void        (* GimpActionGroupUpdateFunc)    (GimpActionGroup   *group,
+                                                      gpointer           data);
 
-typedef void     (* GimpUIManagerSetupFunc)       (GimpUIManager   *manager,
-                                                   const gchar     *ui_path);
+typedef void        (* GimpUIManagerSetupFunc)       (GimpUIManager     *manager,
+                                                      const gchar       *ui_path);
 
-typedef void     (* GimpMenuPositionFunc)         (GtkMenu         *menu,
-                                                   gint            *x,
-                                                   gint            *y,
-                                                   gpointer         data);
-typedef gboolean (* GimpPanedBoxDroppedFunc)      (GtkWidget         *source,
-                                                   gint               insert_index,
-                                                   gpointer           data);
+typedef void        (* GimpMenuPositionFunc)         (GtkMenu           *menu,
+                                                      gint              *x,
+                                                      gint              *y,
+                                                      gpointer           data);
+typedef gboolean    (* GimpPanedBoxDroppedFunc)      (GtkWidget         *source,
+                                                      gint               insert_index,
+                                                      gpointer           data);
 
 
 /*  temp hack as replacement for GdkSegment  */

@@ -123,7 +123,7 @@ query (void)
     { GIMP_PDB_STRING,   "comment",      "Image comment" },
     { GIMP_PDB_INT32,    "subsmp",       "The subsampling option number" },
     { GIMP_PDB_INT32,    "baseline",     "Force creation of a baseline JPEG (non-baseline JPEGs can't be read by all decoders) (0/1)" },
-    { GIMP_PDB_INT32,    "restart",      "Frequency of restart markers (in rows, 0 = no restart markers)" },
+    { GIMP_PDB_INT32,    "restart",      "Interval of restart markers (in MCU rows, 0 = no restart markers)" },
     { GIMP_PDB_INT32,    "dct",          "DCT algorithm to use (speed/quality tradeoff)" }
   };
 
@@ -212,7 +212,7 @@ run (const gchar      *name,
 
   has_metadata = FALSE;
   orig_quality = 0;
-  orig_subsmp = JPEG_SUPSAMPLING_2x2_1x1_1x1;
+  orig_subsmp = JPEG_SUBSAMPLING_2x2_1x1_1x1;
   num_quant_tables = 0;
 
   if (strcmp (name, LOAD_PROC) == 0)
@@ -440,9 +440,9 @@ run (const gchar      *name,
                   jsvals.use_orig_quality = TRUE;
                 }
 
-              if (orig_subsmp == JPEG_SUPSAMPLING_1x1_1x1_1x1 ||
+              if (orig_subsmp == JPEG_SUBSAMPLING_1x1_1x1_1x1 ||
                   ((gint) orig_subsmp > 0 &&
-                   jsvals.subsmp == JPEG_SUPSAMPLING_1x1_1x1_1x1))
+                   jsvals.subsmp == JPEG_SUBSAMPLING_1x1_1x1_1x1))
                 {
                   jsvals.subsmp = orig_subsmp;
                 }

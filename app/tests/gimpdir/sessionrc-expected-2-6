@@ -36,11 +36,6 @@
         (book
             (current-page 0)
             (dockable "gimp-tool-options"
-                (tab-style icon))))
-    (gimp-dock
-        (book
-            (current-page 0)
-            (dockable "gimp-device-status"
                 (tab-style icon)))))
 (session-info "toplevel"
     (factory-entry "gimp-dock-window")
@@ -90,11 +85,8 @@
 (session-info "toplevel"
     (factory-entry "gimp-empty-image-window")
     (position 140 30)
-    (size 610 190))
-(session-info "toplevel"
-    (factory-entry "gimp-single-image-window")
-    (position 10 40)
-    (size 900 600))
+    (size 610 190)
+    (open-on-exit))
 
 (last-tip-shown 0)
 

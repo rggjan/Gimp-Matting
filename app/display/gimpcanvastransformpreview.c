@@ -35,6 +35,7 @@
 #include "core/gimpchannel.h"
 #include "core/gimpimage.h"
 #include "core/gimp-transform-utils.h"
+#include "core/gimp-utils.h"
 
 #include "gimpcanvas.h"
 #include "gimpcanvastransformpreview.h"
@@ -45,9 +46,6 @@
 #define INT_MULT(a,b,t)    ((t) = (a) * (b) + 0x80, ((((t) >> 8) + (t)) >> 8))
 #define INT_MULT3(a,b,c,t) ((t) = (a) * (b) * (c) + 0x7F5B, \
                            ((((t) >> 7) + (t)) >> 16))
-
-#define MIN4(a,b,c,d)      MIN(MIN(a,b),MIN(c,d))
-#define MAX4(a,b,c,d)      MAX(MAX(a,b),MAX(c,d))
 
 #define MAX_SUB_COLS       6 /* number of columns and  */
 #define MAX_SUB_ROWS       6 /* rows to use in perspective preview subdivision */
@@ -934,6 +932,7 @@ gimp_canvas_transform_preview_draw_tri_row (GimpDrawable    *texture,
   if (! dx)
     return;
 
+  cairo_surface_flush (area);
   pptr = (cairo_image_surface_get_data (area)
           + (y - area_offy) * cairo_image_surface_get_stride (area)
           + (x1 - area_offx) * 4);
@@ -1171,6 +1170,7 @@ gimp_canvas_transform_preview_draw_tri_row_mask (GimpDrawable    *texture,
   mu = u + mask_offx;
   mv = v + mask_offy;
 
+  cairo_surface_flush (area);
   pptr = (cairo_image_surface_get_data (area)
           + (y - area_offy) * cairo_image_surface_get_stride (area)
           + (x1 - area_offx) * 4);
