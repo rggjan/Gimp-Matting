@@ -29,16 +29,16 @@ void gimp_drawable_foreground_extract (GimpDrawable              *drawable,
 /*  MATTING specific API  */
 
 MattingState *gimp_drawable_foreground_extract_matting_init (GimpDrawable *drawable,
-    gint          x,
-    gint          y,
-    gint          width,
-    gint          height);
+                                                             gint          x,
+                                                             gint          y,
+                                                             gint          width,
+                                                             gint          height);
 
 void gimp_drawable_foreground_extract_matting (GimpDrawable       *mask,
-    GimpLayer    *result_layer,
-    MattingState *state,
-    gfloat        start_percentage,
-    GimpProgress *progress);
+                                               GimpLayer    *result_layer,
+                                               MattingState *state,
+                                               gfloat        start_percentage,
+                                               GimpProgress *progress);
 
 void gimp_drawable_foreground_extract_matting_done (MattingState      *state);
 

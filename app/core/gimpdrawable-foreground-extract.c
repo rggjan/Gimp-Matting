@@ -73,10 +73,10 @@ gimp_drawable_foreground_extract (GimpDrawable              *drawable,
 
 MattingState *
 gimp_drawable_foreground_extract_matting_init (GimpDrawable *drawable,
-    gint          x,
-    gint          y,
-    gint          width,
-    gint          height)
+                                               gint          x,
+                                               gint          y,
+                                               gint          width,
+                                               gint          height)
 {
   const guchar *colormap = NULL;
   gboolean      intersect;
@@ -112,10 +112,10 @@ gimp_drawable_foreground_extract_matting_init (GimpDrawable *drawable,
 
 void
 gimp_drawable_foreground_extract_matting (GimpDrawable       *mask,
-    GimpLayer          *result_layer,
-    MattingState        *state,
-    gfloat              start_percentage,
-    GimpProgress       *progress)
+                                          GimpLayer          *result_layer,
+                                          MattingState        *state,
+                                          gfloat              start_percentage,
+                                          GimpProgress       *progress)
 {
   gint x1, y1;
   gint x2, y2;
