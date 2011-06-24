@@ -45,7 +45,7 @@
 // #define DEBUG_PREDEFINED_MASK_WRITE FALSE
 
 #define CAN_USE_ORIGINAL_COLORS
-#define HIGH_WEIGHT_FG_BG
+//#define HIGH_WEIGHT_FG_BG
 
 #ifdef IMAGE_DEBUG_PPM
 #include "stdio.h"
@@ -118,7 +118,7 @@ typedef struct HashEntry_ HashEntry;
 
 // TODO should be 300*6/64, actually...
 #define BIG_CACHE_CHANNELS 4
-#define BIG_CACHE_RADIUS 3
+#define BIG_CACHE_RADIUS 6
 #define BIG_CACHE_SIZE ((BIG_CACHE_RADIUS*2+1)*64)
 #define GET_PIXEL(big_cache, x, y, color) (big_cache[BIG_CACHE_RADIUS*64+y][BIG_CACHE_RADIUS*64+x][color])
 typedef guchar BigCache[BIG_CACHE_SIZE][BIG_CACHE_SIZE][BIG_CACHE_CHANNELS];
@@ -939,7 +939,7 @@ search_neighborhood (HashEntry* entry, MattingState *state)
 
   if (state->tx != tx || state->ty != ty)
     {
-      load_big_cache (state->pixels, state->result_layer, state->big_cache, tx, ty, 3);
+      load_big_cache (state->pixels, state->result_layer, state->big_cache, tx, ty, 6);
 
 #ifdef IMAGE_DEBUG_PPM
       {
@@ -957,7 +957,7 @@ search_neighborhood (HashEntry* entry, MattingState *state)
   // in a 9x9 window, we want to have values in a 90° window
   angle = ((orig_pos_x % 3) + (orig_pos_y % 3) * 3) * 2.*G_PI / 9. / 4.;
 
-  for (distance = 6; distance < 3 * 64; distance += 6)
+  for (distance = 6; distance < 6 * 64; distance += 6)
     {
       // TODO precalculate these!
       xdiff = cos (angle) * distance;
@@ -1375,9 +1375,9 @@ matting_foreground_extract (MattingState       *state,
 
   unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
-  for (ty = y1 / 64; ty <= y2 / 64; ty++)
+  for (ty = y1 / 64; ty < y2 / 64; ty++)
     {
-      for (tx = x1 / 64; tx <= x2 / 64; tx++)
+      for (tx = x1 / 64; tx < x2 / 64; tx++)
         {
           guint   height_tile;
           guint   width_tile;
@@ -1394,6 +1394,7 @@ matting_foreground_extract (MattingState       *state,
 #endif
 
           tile = tile_manager_get_at (result_layer, tx, ty, TRUE, TRUE);
+
           pointer = tile_data_pointer (tile, 0, 0);
 
           width_tile = tile_ewidth (tile);
