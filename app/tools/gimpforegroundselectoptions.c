@@ -76,8 +76,8 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
 
   GIMP_CONFIG_INSTALL_PROP_ENUM (object_class, PROP_DRAW_MODE,
                                  "draw-mode",
-                                  N_("Paint over areas to mark color values for "
-                                  "inclusion or exclusion from selection"),
+                                 N_("Paint over areas to mark color values for "
+                                    "inclusion or exclusion from selection"),
                                  GIMP_TYPE_MATTING_DRAW_MODE,
                                  GIMP_MATTING_DRAW_MODE_FOREGROUND,
                                  GIMP_PARAM_STATIC_STRINGS);
@@ -91,7 +91,7 @@ gimp_foreground_select_options_class_init (GimpForegroundSelectOptionsClass *kla
   GIMP_CONFIG_INSTALL_PROP_INT (object_class, PROP_START_PERCENTAGE,
                                 "start-percentage",
                                 N_("What is the minimum percent of knokwn "
-                                  "pixels to start with the algorithm"),
+                                   "pixels to start with the algorithm"),
                                 0, 100, 70,
                                 GIMP_PARAM_STATIC_STRINGS);
 

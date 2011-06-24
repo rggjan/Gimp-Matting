@@ -982,9 +982,9 @@ search_neighborhood (HashEntry* entry, MattingState *state)
               a = GET_PIXEL (state->big_cache, xtmp, ytmp, 3);
 
               gradients[direction] += sqrt(dist_squared(prevval[direction][0],
-                                           prevval[direction][1],
-                                           prevval[direction][2],
-                                           r, g, b));
+                                                        prevval[direction][1],
+                                                        prevval[direction][2],
+                                                        r, g, b));
 
               prevval[direction][0] = r;
               prevval[direction][1] = g;
