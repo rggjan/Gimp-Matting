@@ -191,6 +191,7 @@ gimp_foreground_select_tool_init (GimpForegroundSelectTool *fg_select)
   gimp_tool_control_set_action_value_2 (tool->control,
                                         "tools/tools-foreground-select-brush-size-set");
 
+  fg_select->idle_id = 0;
   fg_select->stroke  = NULL;
   fg_select->strokes = NULL;
   fg_select->mask    = NULL;
@@ -340,6 +341,19 @@ gimp_foreground_select_tool_modifier_key (GimpTool        *tool,
                       "draw-mode", GIMP_MATTING_DRAW_MODE_FOREGROUND,
                       NULL);
     }
+}
+
+static gboolean
+gimp_foreground_select_tool_idle_select (GimpForegroundSelectTool *fg_select)
+{
+  GimpTool *tool = GIMP_TOOL (fg_select);
+
+  fg_select->idle_id = 0;
+
+  if (tool->display)
+    gimp_free_select_tool_select (GIMP_FREE_SELECT_TOOL (tool), tool->display);
+
+  return FALSE;
 }
 
 static void
@@ -617,6 +631,12 @@ gimp_foreground_select_tool_select (GimpFreeSelectTool *free_sel,
   fg_select = GIMP_FOREGROUND_SELECT_TOOL (free_sel);
   options   = GIMP_FOREGROUND_SELECT_TOOL_GET_OPTIONS (free_sel);
 
+  if (fg_select->idle_id)
+    {
+      g_source_remove (fg_select->idle_id);
+      fg_select->idle_id = 0;
+    }
+
   if (! drawable)
     return;
 
@@ -841,6 +861,19 @@ gimp_foreground_select_options_notify (GimpForegroundSelectOptions *options,
 {
   if (!fg_select->mask)
     return;
+
+
+  if (strcmp (pspec->name, "continuous") == 0)
+    {
+      if (fg_select->idle_id)
+        g_source_remove (fg_select->idle_id);
+
+      fg_select->idle_id =
+        g_idle_add_full (G_PRIORITY_LOW,
+                         (GSourceFunc) gimp_foreground_select_tool_idle_select,
+                         fg_select, NULL);
+
+    }
 
   if (g_str_has_prefix (pspec->name, "mask-color"))
     {

@@ -42,7 +42,7 @@
 // TRUE for writing
 // FALSE for reading
 // undefined for normal mode
-// #define DEBUG_PREDEFINED_MASK_WRITE FALSE
+#define DEBUG_PREDEFINED_MASK_WRITE TRUE
 
 #define CAN_USE_ORIGINAL_COLORS
 //#define HIGH_WEIGHT_FG_BG
@@ -1374,8 +1374,6 @@ matting_foreground_extract (MattingState       *state,
     }
 
   unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
-
-  g_printf("y1, y2, x1, x2: %i,%i %i,%i %i,%i %i,%i\n", y1, y1/64, y2, y2/64, x1, x1/64, x2, x2/64);
 
   for (ty = y1 / 64; ty <= (y2-1) / 64; ty++)
     {
