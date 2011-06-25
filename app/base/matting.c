@@ -1375,9 +1375,11 @@ matting_foreground_extract (MattingState       *state,
 
   unknown_hash = g_hash_table_new(g_int_hash, g_int_equal); // TODO assert int = int32
 
-  for (ty = y1 / 64; ty < y2 / 64; ty++)
+  g_printf("y1, y2, x1, x2: %i,%i %i,%i %i,%i %i,%i\n", y1, y1/64, y2, y2/64, x1, x1/64, x2, x2/64);
+
+  for (ty = y1 / 64; ty <= (y2-1) / 64; ty++)
     {
-      for (tx = x1 / 64; tx < x2 / 64; tx++)
+      for (tx = x1 / 64; tx <= (x2-1) / 64; tx++)
         {
           guint   height_tile;
           guint   width_tile;
