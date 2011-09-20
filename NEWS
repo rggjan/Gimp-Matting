@@ -7,6 +7,47 @@ This is the unstable development branch of GIMP.  Here we are working
 towards the next stable release, which will be GIMP 2.8.
 
 
+Changes in GIMP 2.7.4
+=====================
+
+
+UI:
+
+ - Add a close button to image tabs in single-window mode
+ - Improve the transform tools' undo strings to be more descriptive
+
+
+Core:
+
+ - Fix "render_image_tile_fault: assertion `tile[4] != NULL' failed"
+   warnings that occured for some image sizes
+
+
+Libgimp:
+
+ - <item>
+
+
+Plug-ins:
+
+ - Make writing color space information to BMP files optional
+
+
+Developer documentation:
+
+ - Add devel-docs/gegl-porting-plan.txt
+
+
+Source and build system:
+
+ - Make git-version.h generation work in shallow git clones
+
+
+General:
+
+ - <item>
+
+
 Changes in GIMP 2.7.3
 =====================
 
@@ -27,6 +68,22 @@ UI:
    brush-modifying paint options
  - Use ALT+number and ALT+Tab shortcuts to navigate between images
    in both single- and multi-window mode
+ - Make 'Export to' always activatable and fall back to 'Export...' if
+   no export target has been set yet
+ - In single-window mode, add new dockable dialogs to the image window
+   instead of in a new window
+ - When switching on single-window mode, put docks in the image window
+   depending on what side of the window they originally had
+ - When switching off single-window mode, distribute dock windows
+   better
+ - Add a canvas item for the transform grid, fixing a major speed
+   regression, and add the same guides options as in the rectangle tools
+ - Don't unmaximize the single-window mode image window when closing
+   images
+ - Resurrect the "You can drop dockable dialogs here" help string
+   below the toolbox
+ - Make pick-and-move with the Move Tool work for layers in a layer
+   group
 
 
 Core:
@@ -59,6 +116,7 @@ Plug-ins:
  - Update libpng code to not use deprecated API (file-mng and file-png)
  - Add an Item class to pygimp
  - Correct/update some labels and defaults in the JPEG plug-in's save dialog UI
+ - Fix "Bug 596410 - gimp-image-get-filename returns NULL for imported files"
 
 
 Developer documentation:
@@ -70,6 +128,7 @@ Source and build system:
 
  - Make cairo a global dependency, starting at libgimpcolor
  - Require poppler >= 0.12.4
+ - Remove gimp-remote for good, it has been disabled for years
 
 
 General:

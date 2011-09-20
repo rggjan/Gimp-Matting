@@ -8,7 +8,7 @@ AC_PREREQ(2.54)
 
 m4_define([gimp_major_version], [2])
 m4_define([gimp_minor_version], [7])
-m4_define([gimp_micro_version], [3])
+m4_define([gimp_micro_version], [4])
 m4_define([gimp_real_version],
           [gimp_major_version.gimp_minor_version.gimp_micro_version])
 m4_define([gimp_version], [gimp_real_version])
@@ -71,7 +71,7 @@ AC_INIT([GIMP], [gimp_version],
 AC_CONFIG_SRCDIR([app/core/gimp.c])
 AC_CONFIG_MACRO_DIR([m4macros])
 
-AM_INIT_AUTOMAKE(no-define dist-bzip2 no-dist-gzip)
+AM_INIT_AUTOMAKE(no-define dist-bzip2 no-dist-gzip -Wno-portability)
 AM_CONFIG_HEADER(config.h)
 
 # Enable silent build rules by default, requires at least
@@ -163,7 +163,7 @@ AM_PROG_LIBTOOL
 AM_PROG_AS
 
 # Initialize maintainer mode
-AM_MAINTAINER_MODE
+AM_MAINTAINER_MODE([enable])
 
 # Honor aclocal flags
 ACLOCAL="$ACLOCAL $ACLOCAL_FLAGS"
@@ -947,16 +947,6 @@ if test "x$enable_mp" != "xno"; then
 fi
 
 
-###################################################
-# gimp-remote is obsolete, but can still be enabled
-###################################################
-
-AC_ARG_ENABLE(gimp-remote,
-	      [  --enable-gimp-remote    build gimp-remote utility (default=no)],
-	      enable_gimp_remote=yes,
-	      enable_gimp_remote="no (not enabled)")
-
-
 ################################
 # Some plug-ins are X11 specific
 ################################
@@ -1013,20 +1003,8 @@ AC_SUBST(SCREENSHOT_LIBS)
 AC_SUBST(DOC_SHOOTER)
 
 
-if test x"$enable_gimp_remote" = xyes; then
-  enable_gimp_remote="$have_libxmu"
-fi
+GIMP_COMMAND='gimp-gimp_app_version'
 
-if test x"$enable_gimp_remote" = xyes; then
-  GIMP_REMOTE='gimp-remote-gimp_app_version$(EXEEXT)'
-  GIMP_REMOTE_MANPAGE='gimp-remote-gimp_app_version.1'
-  GIMP_COMMAND='gimp-remote-gimp_app_version'
-else
-  GIMP_COMMAND='gimp-gimp_app_version'
-fi
-
-AC_SUBST(GIMP_REMOTE)
-AC_SUBST(GIMP_REMOTE_MANPAGE)
 AC_SUBST(GIMP_COMMAND)
 
 
@@ -1223,14 +1201,14 @@ have_libexif=no
 if test "x$with_libexif" != xno && test -z "$EXIF_LIBS" && test -n "$JPEG_LIBS"; then
   have_libexif=yes
   PKG_CHECK_MODULES(EXIF, libexif >= exif_required_version,
-    AC_DEFINE(HAVE_EXIF, 1, [Define to 1 if libexif is available]),
+    AC_DEFINE(HAVE_LIBEXIF, 1, [Define to 1 if libexif is available]),
     have_libexif="no (libexif not found or too old)")
 fi
 
 AC_SUBST(EXIF_CFLAGS)
 AC_SUBST(EXIF_LIBS)
 
-AM_CONDITIONAL(BUILD_METADATA, test "x$have_libexif" = xyes)
+AM_CONDITIONAL(HAVE_LIBEXIF, test "x$have_libexif" = xyes)
 
 
 #################
@@ -1816,6 +1794,9 @@ if test "x$with_mac_twain" != xno; then
   AC_TRY_CPP([
 #include <Carbon/Carbon.h>
 #include <TWAIN/TWAIN.h>
+#ifdef __x86_64__
+#error Please somebody port this to non-deprecated and non-removed APIs
+#endif
   ], mac_twain_ok=yes)
   AC_MSG_RESULT($mac_twain_ok)
 fi
@@ -2245,7 +2226,6 @@ AC_CONFIG_FILES(
 docs/gimp-gimp_app_version.1:docs/gimp.1.in
 docs/gimprc-gimp_app_version.5:docs/gimprc.5.in
 docs/gimptool-gimp_tool_version.1:docs/gimptool.1.in
-docs/gimp-remote-gimp_app_version.1:docs/gimp-remote.1.in
 gimp-gimp_pkgconfig_version.pc:gimp.pc.in
 gimpthumb-gimp_pkgconfig_version.pc:gimpthumb.pc.in
 gimpui-gimp_pkgconfig_version.pc:gimpui.pc.in
@@ -2267,7 +2247,6 @@ Desktop files install into $DESKTOP_DATADIR
 
 Extra Binaries:
   gimp-console:        $enable_gimp_console
-  gimp-remote:         $enable_gimp_remote
 
 Optional Features:
   D-Bus service:       $have_dbus_glib

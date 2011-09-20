@@ -66,15 +66,15 @@ static void              gimp_ui_configurer_get_property                (GObject
                                                                          GValue            *value,
                                                                          GParamSpec        *pspec);
 static void              gimp_ui_configurer_move_docks_to_columns       (GimpUIConfigurer  *ui_configurer,
-                                                                         GimpDockColumns   *dock_columns,
-                                                                         gboolean           only_toolbox);
+                                                                         GimpImageWindow   *uber_image_window);
 static void              gimp_ui_configurer_move_shells                 (GimpUIConfigurer  *ui_configurer,
                                                                          GimpImageWindow   *source_image_window,
                                                                          GimpImageWindow   *target_image_window);
 static void              gimp_ui_configurer_separate_docks              (GimpUIConfigurer  *ui_configurer,
                                                                          GimpImageWindow   *source_image_window);
 static void              gimp_ui_configurer_move_docks_to_window        (GimpUIConfigurer  *ui_configurer,
-                                                                         GimpDockColumns   *dock_columns);
+                                                                         GimpDockColumns   *dock_columns,
+                                                                         GimpAlignmentType  screen_side_destination);
 static void              gimp_ui_configurer_separate_shells             (GimpUIConfigurer  *ui_configurer,
                                                                          GimpImageWindow   *source_image_window);
 static void              gimp_ui_configurer_configure_for_single_window (GimpUIConfigurer  *ui_configurer);
@@ -152,10 +152,45 @@ gimp_ui_configurer_get_property (GObject    *object,
     }
 }
 
+
 static void
-gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer  *ui_configurer,
-                                          GimpDockColumns   *dock_columns,
-                                          gboolean           only_toolbox)
+gimp_ui_configurer_get_window_center_pos (GtkWindow *window,
+                                          gint      *out_x,
+                                          gint      *out_y)
+{
+  gint x, y, w, h;
+  gtk_window_get_position (window, &x, &y);
+  gtk_window_get_size (window, &w, &h);
+
+  if (out_x)
+    *out_x = x + w / 2;
+  if (out_y)
+    *out_y = y + h / 2;
+}
+
+/**
+ * gimp_ui_configurer_get_relative_window_pos:
+ * @window_a:
+ * @window_b:
+ *
+ * Returns: At what side @window_b is relative to @window_a. Either
+ * GIMP_ALIGN_LEFT or GIMP_ALIGN_RIGHT.
+ **/
+static GimpAlignmentType
+gimp_ui_configurer_get_relative_window_pos (GtkWindow *window_a,
+                                            GtkWindow *window_b)
+{
+  gint a_x, b_x;
+
+  gimp_ui_configurer_get_window_center_pos (window_a, &a_x, NULL);
+  gimp_ui_configurer_get_window_center_pos (window_b, &b_x, NULL);
+
+  return b_x < a_x ? GIMP_ALIGN_LEFT : GIMP_ALIGN_RIGHT;
+}
+
+static void
+gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer *ui_configurer,
+                                          GimpImageWindow  *uber_image_window)
 {
   GList *dialogs     = NULL;
   GList *dialog_iter = NULL;
@@ -165,15 +200,28 @@ gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer  *ui_configurer,
 
   for (dialog_iter = dialogs; dialog_iter; dialog_iter = dialog_iter->next)
     {
-      GimpDockWindow    *dock_window    = NULL;
-      GimpDockContainer *dock_container = NULL;
-      GList             *docks          = NULL;
-      GList             *dock_iter      = NULL;
+      GimpDockWindow    *dock_window;
+      GimpDockContainer *dock_container;
+      GimpDockColumns   *dock_columns;
+      GList             *docks;
+      GList             *dock_iter;
 
       if (!GIMP_IS_DOCK_WINDOW (dialog_iter->data))
         continue;
 
-      dock_window    = GIMP_DOCK_WINDOW (dialog_iter->data);
+      dock_window = GIMP_DOCK_WINDOW (dialog_iter->data);
+
+      /* If the dock window is on the left side of the image window,
+       * move the docks to the left side. If the dock window is on the
+       * right side, move the docks to the right side of the image
+       * window.
+       */
+      if (gimp_ui_configurer_get_relative_window_pos (GTK_WINDOW (uber_image_window),
+                                                      GTK_WINDOW (dock_window)) == GIMP_ALIGN_LEFT)
+        dock_columns = gimp_image_window_get_left_docks (uber_image_window);
+      else
+        dock_columns = gimp_image_window_get_right_docks (uber_image_window);
+
       dock_container = GIMP_DOCK_CONTAINER (dock_window);
       g_object_add_weak_pointer (G_OBJECT (dock_window),
                                  (gpointer) &dock_window);
@@ -182,10 +230,6 @@ gimp_ui_configurer_move_docks_to_columns (GimpUIConfigurer  *ui_configurer,
       for (dock_iter = docks; dock_iter; dock_iter = dock_iter->next)
         {
           GimpDock *dock = GIMP_DOCK (dock_iter->data);
-
-          if (only_toolbox &&
-              ! GIMP_IS_TOOLBOX (dock))
-            continue;
 
           /* Move the dock from the image window to the dock columns
            * widget. Note that we need a ref while the dock is parentless
@@ -266,54 +310,93 @@ gimp_ui_configurer_separate_docks (GimpUIConfigurer  *ui_configurer,
   left_docks  = gimp_image_window_get_left_docks (image_window);
   right_docks = gimp_image_window_get_right_docks (image_window);
 
-  gimp_ui_configurer_move_docks_to_window (ui_configurer, left_docks);
-  gimp_ui_configurer_move_docks_to_window (ui_configurer, right_docks);
+  gimp_ui_configurer_move_docks_to_window (ui_configurer, left_docks, GIMP_ALIGN_LEFT);
+  gimp_ui_configurer_move_docks_to_window (ui_configurer, right_docks, GIMP_ALIGN_RIGHT);
 }
 
 /**
  * gimp_ui_configurer_move_docks_to_window:
  * @dock_columns:
+ * @screen_side_destination: At what side of the screen the dock window
+ *                           should be put.
  *
- * Moves docks in @dock_columns into a new #GimpDockWindow.
- * FIXME: Properly session manage
+ * Moves docks in @dock_columns into a new #GimpDockWindow and
+ * position it on the screen in a non-overlapping manner.
  */
 static void
-gimp_ui_configurer_move_docks_to_window (GimpUIConfigurer *ui_configurer,
-                                         GimpDockColumns  *dock_columns)
+gimp_ui_configurer_move_docks_to_window (GimpUIConfigurer  *ui_configurer,
+                                         GimpDockColumns   *dock_columns,
+                                         GimpAlignmentType  screen_side_destination)
 {
-  GdkScreen *screen = gtk_widget_get_screen (GTK_WIDGET (dock_columns));
-  GList     *docks  = g_list_copy (gimp_dock_columns_get_docks (dock_columns));
-  GList     *iter   = NULL;
+  GdkScreen    *screen           = gtk_widget_get_screen (GTK_WIDGET (dock_columns));
+  GList        *docks            = g_list_copy (gimp_dock_columns_get_docks (dock_columns));
+  GList        *iter             = NULL;
+  gboolean      contains_toolbox = FALSE;
+  GtkWidget    *dock_window      = NULL;
+  GtkAllocation original_size    = { 0, 0, 0, 0 };
+
+  /* Are there docks to move at all? */
+  if (! docks)
+    return;
+
+  /* Remember the size so we can set the new dock window to the same
+   * size
+   */
+  gtk_widget_get_allocation (GTK_WIDGET (dock_columns), &original_size);
+
+  /* Do we need a toolbox window? */
+  for (iter = docks; iter; iter = iter->next)
+    {
+      GimpDock *dock = GIMP_DOCK (iter->data);
+
+      if (GIMP_IS_TOOLBOX (dock))
+        {
+          contains_toolbox = TRUE;
+          break;
+        }
+    }
+
+  /* Create a dock window to put the dock in. Checking for
+   * GIMP_IS_TOOLBOX() is kind of ugly but not a disaster. We need
+   * the dock window correctly configured if we create it for the
+   * toolbox
+   */
+  dock_window =
+    gimp_dialog_factory_dialog_new (gimp_dialog_factory_get_singleton (),
+                                    screen,
+                                    NULL /*ui_manager*/,
+                                    (contains_toolbox ?
+                                     "gimp-toolbox-window" :
+                                     "gimp-dock-window"),
+                                    -1 /*view_size*/,
+                                    FALSE /*present*/);
 
   for (iter = docks; iter; iter = iter->next)
     {
-      GimpDock  *dock        = GIMP_DOCK (iter->data);
-      GtkWidget *dock_window = NULL;
-
-      /* Create a dock window to put the dock in. Checking for
-       * GIMP_IS_TOOLBOX() is kind of ugly but not a disaster. We need
-       * the dock window correctly configured if we create it for the
-       * toolbox
-       */
-      dock_window =
-        gimp_dialog_factory_dialog_new (gimp_dialog_factory_get_singleton (),
-                                        screen,
-                                        NULL /*ui_manager*/,
-                                        (GIMP_IS_TOOLBOX (dock) ?
-                                         "gimp-toolbox-window" :
-                                         "gimp-dock-window"),
-                                        -1 /*view_size*/,
-                                        FALSE /*present*/);
+      GimpDock *dock = GIMP_DOCK (iter->data);
 
       /* Move the dock to the window */
       g_object_ref (dock);
       gimp_dock_columns_remove_dock (dock_columns, dock);
       gimp_dock_window_add_dock (GIMP_DOCK_WINDOW (dock_window), dock, -1);
       g_object_unref (dock);
-
-      /* Don't forget to show the window */
-      gtk_widget_show (dock_window);
     }
+
+  /* Position the window */
+  if (screen_side_destination == GIMP_ALIGN_LEFT)
+    gtk_window_parse_geometry (GTK_WINDOW (dock_window), "+0+0");
+  else if (screen_side_destination == GIMP_ALIGN_RIGHT)
+    gtk_window_parse_geometry (GTK_WINDOW (dock_window), "-0+0");
+  else
+    g_assert_not_reached ();
+
+  /* Try to keep the same size */
+  gtk_window_set_default_size (GTK_WINDOW (dock_window),
+                               original_size.width,
+                               original_size.height);
+
+  /* Don't forget to show the window */
+  gtk_widget_show (dock_window);
 
   g_list_free (docks);
 }
@@ -371,31 +454,15 @@ gimp_ui_configurer_configure_for_single_window (GimpUIConfigurer *ui_configurer)
   GList           *windows           = gimp_get_image_windows (gimp);
   GList           *iter              = NULL;
   GimpImageWindow *uber_image_window = NULL;
-  GimpDockColumns *left_docks        = NULL;
-  GimpDockColumns *right_docks       = NULL;
 
   /* Get and setup the window to put everything in */
   uber_image_window = gimp_ui_configurer_get_uber_window (ui_configurer);
 
-  /* Get dock areas */
-  left_docks  = gimp_image_window_get_left_docks (uber_image_window);
-  right_docks = gimp_image_window_get_right_docks (uber_image_window);
-
-  /* First move the toolbox to the left side of the image
-   * window
-   */
+  /* Mve docks to the left and right side of the image window */
   gimp_ui_configurer_move_docks_to_columns (ui_configurer,
-                                            left_docks,
-                                            TRUE /*only_toolbox*/);
+                                            uber_image_window);
 
-  /* Then move the other docks to the right side of the image
-   * window
-   */
-  gimp_ui_configurer_move_docks_to_columns (ui_configurer,
-                                            right_docks,
-                                            FALSE /*only_toolbox*/);
-
-  /* Move stuff from other windows to the uber image window */
+  /* Move image shells from other windows to the uber image window */
   for (iter = windows; iter; iter = g_list_next (iter))
     {
       GimpImageWindow *image_window = GIMP_IMAGE_WINDOW (iter->data);

@@ -87,20 +87,8 @@ struct _GimpTransformTool
   gboolean        use_center;      /*  uses the center handle            */
   gboolean        use_mid_handles; /*  use handles at midpoints of edges */
 
-  gint            handle_w;        /*  handle width                      */
-  gint            handle_h;        /*  handle height                     */
-
-  gint            ngx, ngy;        /*  number of grid lines in original
-                                    *  x and y directions
-                                    */
-  gdouble        *grid_coords;     /*  x and y coordinates of the grid
-                                    *  endpoints (a total of (ngx+ngy)*2
-                                    *  coordinate pairs)
-                                    */
-
   GimpCanvasItem *handles[TRANSFORM_HANDLE_CENTER + 1];
 
-  const gchar    *undo_desc;
   const gchar    *progress_text;
 
   GtkWidget      *dialog;
@@ -116,6 +104,7 @@ struct _GimpTransformToolClass
   void          (* prepare)       (GimpTransformTool *tool);
   void          (* motion)        (GimpTransformTool *tool);
   void          (* recalc_matrix) (GimpTransformTool *tool);
+  gchar       * (* get_undo_desc) (GimpTransformTool *tool);
   TileManager * (* transform)     (GimpTransformTool *tool,
                                    GimpItem          *item,
                                    TileManager       *orig_tiles,

@@ -73,6 +73,7 @@ enum
   PROP_USER_MANUAL_ONLINE_URI,
   PROP_DOCK_WINDOW_HINT,
   PROP_CURSOR_FORMAT,
+  PROP_CURSOR_HANDEDNESS,
 
   /* ignored, only for backward compatibility: */
   PROP_INFO_WINDOW_PER_DISPLAY,
@@ -158,8 +159,7 @@ gimp_gui_config_class_init (GimpGuiConfigClass *klass)
   GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_SINGLE_WINDOW_MODE,
                                     "single-window-mode", SINGLE_WINDOW_MODE_BLURB,
                                     FALSE,
-                                    GIMP_PARAM_STATIC_STRINGS |
-                                    GIMP_CONFIG_PARAM_RESTART);
+                                    GIMP_PARAM_STATIC_STRINGS);
   GIMP_CONFIG_INSTALL_PROP_BOOLEAN (object_class, PROP_TEAROFF_MENUS,
                                     "tearoff-menus", TEAROFF_MENUS_BLURB,
                                     TRUE,
@@ -255,6 +255,11 @@ gimp_gui_config_class_init (GimpGuiConfigClass *klass)
                                  "cursor-format", CURSOR_FORMAT_BLURB,
                                  GIMP_TYPE_CURSOR_FORMAT,
                                  GIMP_CURSOR_FORMAT_PIXBUF,
+                                 GIMP_PARAM_STATIC_STRINGS);
+  GIMP_CONFIG_INSTALL_PROP_ENUM (object_class, PROP_CURSOR_HANDEDNESS,
+                                 "cursor-handedness", CURSOR_HANDEDNESS_BLURB,
+                                 GIMP_TYPE_HANDEDNESS,
+                                 GIMP_HANDEDNESS_RIGHT,
                                  GIMP_PARAM_STATIC_STRINGS);
 
   /*  only for backward compatibility:  */
@@ -421,6 +426,9 @@ gimp_gui_config_set_property (GObject      *object,
     case PROP_CURSOR_FORMAT:
       gui_config->cursor_format = g_value_get_enum (value);
       break;
+    case PROP_CURSOR_HANDEDNESS:
+      gui_config->cursor_handedness = g_value_get_enum (value);
+      break;
 
     case PROP_INFO_WINDOW_PER_DISPLAY:
     case PROP_MENU_MNEMONICS:
@@ -537,6 +545,9 @@ gimp_gui_config_get_property (GObject    *object,
       break;
     case PROP_CURSOR_FORMAT:
       g_value_set_enum (value, gui_config->cursor_format);
+      break;
+    case PROP_CURSOR_HANDEDNESS:
+      g_value_set_enum (value, gui_config->cursor_handedness);
       break;
 
     case PROP_INFO_WINDOW_PER_DISPLAY:

@@ -877,7 +877,7 @@ gimp_display_shell_vectors_add_handler (GimpContainer    *container,
                                gimp_vectors_get_bezier (vectors),
                                0, 0,
                                FALSE,
-                               TRUE);
+                               GIMP_PATH_STYLE_VECTORS);
   gimp_canvas_item_set_visible (item,
                                 gimp_item_get_visible (GIMP_ITEM (vectors)));
 

@@ -260,68 +260,6 @@ gimp_transform_type_get_type (void)
 }
 
 GType
-gimp_transform_preview_type_get_type (void)
-{
-  static const GEnumValue values[] =
-  {
-    { GIMP_TRANSFORM_PREVIEW_TYPE_OUTLINE, "GIMP_TRANSFORM_PREVIEW_TYPE_OUTLINE", "outline" },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_GRID, "GIMP_TRANSFORM_PREVIEW_TYPE_GRID", "grid" },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE, "GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE", "image" },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE_GRID, "GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE_GRID", "image-grid" },
-    { 0, NULL, NULL }
-  };
-
-  static const GimpEnumDesc descs[] =
-  {
-    { GIMP_TRANSFORM_PREVIEW_TYPE_OUTLINE, NC_("transform-preview-type", "Outline"), NULL },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_GRID, NC_("transform-preview-type", "Grid"), NULL },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE, NC_("transform-preview-type", "Image"), NULL },
-    { GIMP_TRANSFORM_PREVIEW_TYPE_IMAGE_GRID, NC_("transform-preview-type", "Image + Grid"), NULL },
-    { 0, NULL, NULL }
-  };
-
-  static GType type = 0;
-
-  if (G_UNLIKELY (! type))
-    {
-      type = g_enum_register_static ("GimpTransformPreviewType", values);
-      gimp_type_set_translation_context (type, "transform-preview-type");
-      gimp_enum_set_value_descriptions (type, descs);
-    }
-
-  return type;
-}
-
-GType
-gimp_transform_grid_type_get_type (void)
-{
-  static const GEnumValue values[] =
-  {
-    { GIMP_TRANSFORM_GRID_TYPE_N_LINES, "GIMP_TRANSFORM_GRID_TYPE_N_LINES", "n-lines" },
-    { GIMP_TRANSFORM_GRID_TYPE_SPACING, "GIMP_TRANSFORM_GRID_TYPE_SPACING", "spacing" },
-    { 0, NULL, NULL }
-  };
-
-  static const GimpEnumDesc descs[] =
-  {
-    { GIMP_TRANSFORM_GRID_TYPE_N_LINES, NC_("transform-grid-type", "Number of grid lines"), NULL },
-    { GIMP_TRANSFORM_GRID_TYPE_SPACING, NC_("transform-grid-type", "Grid line spacing"), NULL },
-    { 0, NULL, NULL }
-  };
-
-  static GType type = 0;
-
-  if (G_UNLIKELY (! type))
-    {
-      type = g_enum_register_static ("GimpTransformGridType", values);
-      gimp_type_set_translation_context (type, "transform-grid-type");
-      gimp_enum_set_value_descriptions (type, descs);
-    }
-
-  return type;
-}
-
-GType
 gimp_vector_mode_get_type (void)
 {
   static const GEnumValue values[] =

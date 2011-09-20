@@ -25,14 +25,14 @@
 
 #include <libgimp/gimp.h>
 
-#ifdef HAVE_EXIF
-
 #include <libexif/exif-data.h>
 #include <libexif/exif-content.h>
 #include <libexif/exif-utils.h>
 
 #include "gimpexif.h"
 
+
+#define EXIF_HEADER_SIZE 8
 
 /*
  * gimp_metadata_store_exif:
@@ -158,6 +158,3 @@ gimp_exif_data_remove_entry (ExifData *exif_data,
   if (entry)
     exif_content_remove_entry (exif_data->ifd[ifd], entry);
 }
-
-
-#endif /* HAVE_EXIF */

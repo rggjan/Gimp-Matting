@@ -35,6 +35,7 @@
 #include "widgets/gimpactiongroup.h"
 #include "widgets/gimpdialogfactory.h"
 #include "widgets/gimpdock.h"
+#include "widgets/gimpdockbook.h"
 #include "widgets/gimpdockcolumns.h"
 #include "widgets/gimpdockcontainer.h"
 #include "widgets/gimphelp-ids.h"
@@ -43,6 +44,7 @@
 #include "widgets/gimpsessioninfo-aux.h"
 #include "widgets/gimpsessionmanaged.h"
 #include "widgets/gimpsessioninfo-dock.h"
+#include "widgets/gimptoolbox.h"
 #include "widgets/gimpuimanager.h"
 #include "widgets/gimpview.h"
 
@@ -171,11 +173,9 @@ static void      gimp_image_window_session_apply       (GimpImageWindow     *win
                                                         const gchar         *entry_id);
 static void      gimp_image_window_session_update      (GimpImageWindow     *window,
                                                         GimpDisplay         *new_display,
-                                                        gboolean             from_switch_page);
+                                                        const gchar         *new_entry_id);
 static const gchar *
                  gimp_image_window_config_to_entry_id  (GimpGuiConfig       *config);
-static void      gimp_image_window_set_entry_id        (GimpImageWindow     *window,
-                                                        const gchar         *entry_id);
 static void      gimp_image_window_show_tooltip        (GimpUIManager       *manager,
                                                         const gchar         *tooltip,
                                                         GimpImageWindow     *window);
@@ -212,6 +212,9 @@ static void      gimp_image_window_shell_title_notify  (GimpDisplayShell    *she
 static void      gimp_image_window_shell_icon_notify   (GimpDisplayShell    *shell,
                                                         const GParamSpec    *pspec,
                                                         GimpImageWindow     *window);
+static GtkWidget *
+                 gimp_image_window_create_tab_label    (GimpImageWindow     *window,
+                                                        GimpDisplayShell    *shell);
 
 
 G_DEFINE_TYPE_WITH_CODE (GimpImageWindow, gimp_image_window, GIMP_TYPE_WINDOW,
@@ -417,11 +420,9 @@ gimp_image_window_constructed (GObject *object)
                            G_CALLBACK (gimp_image_window_config_notify),
                            window, G_CONNECT_SWAPPED);
 
-  private->entry_id = gimp_image_window_config_to_entry_id (config);
-
   gimp_image_window_session_update (window,
                                     NULL /*new_display*/,
-                                    FALSE /*from_switch_page*/);
+                                    gimp_image_window_config_to_entry_id (config));
 }
 
 static void
@@ -995,8 +996,7 @@ gimp_image_window_add_shell (GimpImageWindow  *window,
                              GimpDisplayShell *shell)
 {
   GimpImageWindowPrivate *private;
-  GtkWidget              *view;
-  GimpImage              *image;
+  GtkWidget              *tab_label;
 
   g_return_if_fail (GIMP_IS_IMAGE_WINDOW (window));
   g_return_if_fail (GIMP_IS_DISPLAY_SHELL (shell));
@@ -1007,17 +1007,10 @@ gimp_image_window_add_shell (GimpImageWindow  *window,
 
   private->shells = g_list_append (private->shells, shell);
 
-  view = gimp_view_new_by_types (gimp_get_user_context (shell->display->gimp),
-                                 GIMP_TYPE_VIEW, GIMP_TYPE_IMAGE,
-                                 GIMP_VIEW_SIZE_LARGE, 0, FALSE);
+  tab_label = gimp_image_window_create_tab_label (window, shell);
 
   gtk_notebook_append_page (GTK_NOTEBOOK (private->notebook),
-                            GTK_WIDGET (shell), view);
-
-  image = gimp_display_get_image (shell->display);
-
-  if (image)
-    gimp_view_set_viewable (GIMP_VIEW (view), GIMP_VIEWABLE (image));
+                            GTK_WIDGET (shell), tab_label);
 
   if (g_list_length (private->shells) > 1)
     gtk_notebook_set_show_tabs (GTK_NOTEBOOK (private->notebook), TRUE);
@@ -1141,7 +1134,8 @@ gimp_image_window_set_show_menubar (GimpImageWindow *window,
 
   private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
 
-  gtk_widget_set_visible (private->menubar, show);
+  if (private->menubar)
+    gtk_widget_set_visible (private->menubar, show);
 }
 
 gboolean
@@ -1153,7 +1147,10 @@ gimp_image_window_get_show_menubar (GimpImageWindow *window)
 
   private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
 
-  return gtk_widget_get_visible (private->menubar);
+  if (private->menubar)
+    return gtk_widget_get_visible (private->menubar);
+
+  return FALSE;
 }
 
 gboolean
@@ -1166,6 +1163,41 @@ gimp_image_window_is_iconified (GimpImageWindow *window)
   private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
 
   return (private->window_state & GDK_WINDOW_STATE_ICONIFIED) != 0;
+}
+
+/**
+ * gimp_image_window_has_toolbox:
+ * @window:
+ *
+ * Returns: %TRUE if the image window contains a GimpToolbox.
+ **/
+gboolean
+gimp_image_window_has_toolbox (GimpImageWindow *window)
+{
+  GimpImageWindowPrivate *private;
+  GList                  *iter = NULL;
+
+  g_return_val_if_fail (GIMP_IS_IMAGE_WINDOW (window), FALSE);
+
+  private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
+
+  for (iter = gimp_dock_columns_get_docks (GIMP_DOCK_COLUMNS (private->left_docks));
+       iter;
+       iter = g_list_next (iter))
+    {
+      if (GIMP_IS_TOOLBOX (iter->data))
+        return TRUE;
+    }
+
+  for (iter = gimp_dock_columns_get_docks (GIMP_DOCK_COLUMNS (private->right_docks));
+       iter;
+       iter = g_list_next (iter))
+    {
+      if (GIMP_IS_TOOLBOX (iter->data))
+        return TRUE;
+    }
+
+  return FALSE;
 }
 
 void
@@ -1315,6 +1347,58 @@ gimp_image_window_shrink_wrap (GimpImageWindow *window,
   gimp_display_shell_scroll_center_image (active_shell, TRUE, TRUE);
 }
 
+static GtkWidget *
+gimp_image_window_get_first_dockbook (GimpDockColumns *columns)
+{
+  GList *dock_iter;
+  
+  for (dock_iter = gimp_dock_columns_get_docks (columns);
+       dock_iter;
+       dock_iter = g_list_next (dock_iter))
+    {
+      GimpDock *dock      = GIMP_DOCK (dock_iter->data);
+      GList    *dockbooks = gimp_dock_get_dockbooks (dock);
+
+      if (dockbooks)
+        return GTK_WIDGET (dockbooks->data);
+    }
+
+  return NULL;
+}
+
+/**
+ * gimp_image_window_get_default_dockbook:
+ * @window:
+ *
+ * Gets the default dockbook, which is the dockbook in which new
+ * dockables should be put in single-window mode.
+ *
+ * Returns: The default dockbook for new dockables, or NULL if no
+ *          dockbook were avaialble.
+ **/
+GtkWidget *
+gimp_image_window_get_default_dockbook (GimpImageWindow  *window)
+{
+  GimpImageWindowPrivate *private;
+  GimpDockColumns        *dock_columns;
+  GtkWidget              *dockbook = NULL;
+
+  private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
+
+  /* First try the first dockbook in the right docks */
+  dock_columns = GIMP_DOCK_COLUMNS (private->right_docks);
+  dockbook     = gimp_image_window_get_first_dockbook (dock_columns);
+
+  /* Then the left docks */
+  if (! dockbook)
+    {
+      dock_columns = GIMP_DOCK_COLUMNS (private->left_docks);
+      dockbook     = gimp_image_window_get_first_dockbook (dock_columns);
+    }
+
+  return dockbook;
+}
+
 /**
  * gimp_image_window_keep_canvas_pos:
  * @window:
@@ -1405,8 +1489,9 @@ gimp_image_window_config_notify (GimpImageWindow *window,
   /* Session management */
   if (strcmp (pspec->name, "single-window-mode") == 0)
     {
-      gimp_image_window_set_entry_id (window,
-                                      gimp_image_window_config_to_entry_id (config));
+      gimp_image_window_session_update (window,
+                                        NULL /*new_display*/,
+                                        gimp_image_window_config_to_entry_id (config));
     }
 }
 
@@ -1519,7 +1604,7 @@ gimp_image_window_switch_page (GtkNotebook     *notebook,
 
   gimp_image_window_session_update (window,
                                     active_display,
-                                    TRUE /*from_switch_page*/);
+                                    NULL /*new_entry_id*/);
 
   gimp_ui_manager_update (private->menubar_manager, active_display);
 }
@@ -1577,14 +1662,19 @@ gimp_image_window_image_notify (GimpDisplay      *display,
                                 GimpImageWindow  *window)
 {
   GimpImageWindowPrivate *private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
+  GtkWidget              *tab_label;
+  GList                  *children;
   GtkWidget              *view;
 
   gimp_image_window_session_update (window,
                                     display,
-                                    FALSE /*from_switch_page*/);
+                                    NULL /*new_entry_id*/);
 
-  view = gtk_notebook_get_tab_label (GTK_NOTEBOOK (private->notebook),
-                                     GTK_WIDGET (gimp_display_get_shell (display)));
+  tab_label = gtk_notebook_get_tab_label (GTK_NOTEBOOK (private->notebook),
+                                          GTK_WIDGET (gimp_display_get_shell (display)));
+  children  = gtk_container_get_children (GTK_CONTAINER (tab_label));
+  view      = GTK_WIDGET (children->data);
+  g_list_free (children);
 
   gimp_view_set_viewable (GIMP_VIEW (view),
                           GIMP_VIEWABLE (gimp_display_get_image (display)));
@@ -1647,24 +1737,73 @@ gimp_image_window_session_apply (GimpImageWindow *window,
 static void
 gimp_image_window_session_update (GimpImageWindow *window,
                                   GimpDisplay     *new_display,
-                                  gboolean         from_switch_page)
+                                  const gchar     *new_entry_id)
 {
   GimpImageWindowPrivate *private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
 
-  if (private->entry_id == NULL)
-    return;
-
-  if (strcmp (private->entry_id, GIMP_EMPTY_IMAGE_WINDOW_ENTRY_ID) == 0)
+  /* Handle changes to the entry id */
+  if (new_entry_id)
     {
-      if (new_display && gimp_display_get_image (new_display))
+      if (! private->entry_id)
+        {
+          /* We're initializing. If we're in single-window mode, this
+           * will be the only window, so start to session manage
+           * it. If we're in multi-window mode, we will find out if we
+           * should session manage ourselves when we get a display
+           */
+          if (strcmp (new_entry_id, GIMP_SINGLE_IMAGE_WINDOW_ENTRY_ID) == 0)
+            {
+              gimp_image_window_session_apply (window, new_entry_id);
+            }
+        }
+      else if (strcmp (private->entry_id, new_entry_id) != 0)
+        {
+          /* The entry id changed, immediately and always stop session
+           * managing the old entry
+           */
+          gimp_image_window_session_clear (window);
+
+          if (strcmp (new_entry_id, GIMP_EMPTY_IMAGE_WINDOW_ENTRY_ID) == 0)
+            {
+              /* If there is only one imageless display, we shall
+               * become the empty image window
+               */
+              if (private->active_shell &&
+                  private->active_shell->display &&
+                  ! gimp_display_get_image (private->active_shell->display) &&
+                  g_list_length (private->shells) <= 1)
+                {
+                  gimp_image_window_session_apply (window, new_entry_id);
+                }
+            }
+          else if (strcmp (new_entry_id, GIMP_SINGLE_IMAGE_WINDOW_ENTRY_ID) == 0)
+            {
+              /* As soon as we become the single image window, we
+               * shall session manage ourself until single-window mode
+               * is exited
+               */
+              gimp_image_window_session_apply (window, new_entry_id);
+            }
+        }
+
+      private->entry_id = new_entry_id;
+    }
+
+  /* Handle changes to the displays. When in single-window mode, we
+   * just keep session managing the single image window. We only need
+   * to care about the multi-window mode case here
+   */
+  if (new_display &&
+      strcmp (private->entry_id, GIMP_EMPTY_IMAGE_WINDOW_ENTRY_ID) == 0)
+    {
+      if (gimp_display_get_image (new_display))
         {
           /* As soon as we have an image we should not affect the size of the
            * empty image window
            */
           gimp_image_window_session_clear (window);
         }
-      else if (new_display &&
-               ! gimp_display_get_image (new_display) &&
+      else if (! gimp_display_get_image (new_display) &&
                g_list_length (private->shells) <= 1)
         {
           /* As soon as we have no image (and no other shells that may
@@ -1672,18 +1811,6 @@ gimp_image_window_session_update (GimpImageWindow *window,
            */
           gimp_image_window_session_apply (window, private->entry_id);
         }
-    }
-  else if (strcmp (private->entry_id, GIMP_SINGLE_IMAGE_WINDOW_ENTRY_ID) == 0)
-    {
-      /* Always session manage the single image window, but not if all
-       * we did was switch tabs
-       */
-      if (! from_switch_page)
-        gimp_image_window_session_apply (window, private->entry_id);
-    }
-  else
-    {
-      g_assert_not_reached ();
     }
 }
 
@@ -1693,27 +1820,6 @@ gimp_image_window_config_to_entry_id (GimpGuiConfig *config)
   return (config->single_window_mode ?
           GIMP_SINGLE_IMAGE_WINDOW_ENTRY_ID :
           GIMP_EMPTY_IMAGE_WINDOW_ENTRY_ID);
-}
-
-static void
-gimp_image_window_set_entry_id (GimpImageWindow *window,
-                                const gchar     *entry_id)
-{
-  GimpImageWindowPrivate *private = GIMP_IMAGE_WINDOW_GET_PRIVATE (window);
-
-  g_return_if_fail (entry_id != NULL);
-
-  if ((private->entry_id && strcmp (private->entry_id, entry_id) == 0) ||
-      ! private->active_shell)
-    return;
-
-  gimp_image_window_session_clear (window);
-
-  private->entry_id = entry_id;
-
-  gimp_image_window_session_update (window,
-                                    private->active_shell->display,
-                                    FALSE /*from_switch_page*/);
 }
 
 static void
@@ -1741,4 +1847,52 @@ gimp_image_window_shell_icon_notify (GimpDisplayShell *shell,
                                      GimpImageWindow  *window)
 {
   gtk_window_set_icon (GTK_WINDOW (window), shell->icon);
+}
+
+static void
+gimp_image_window_shell_close_button_callback (GimpDisplayShell *shell)
+{
+  if (shell)
+    gimp_display_shell_close (shell, FALSE);
+}
+
+static GtkWidget *
+gimp_image_window_create_tab_label (GimpImageWindow  *window,
+                                    GimpDisplayShell *shell)
+{
+  GtkWidget *hbox;
+  GtkWidget *view;
+  GimpImage *image;
+  GtkWidget *button;
+  GtkWidget *gtk_image;
+
+  hbox = gtk_hbox_new (FALSE, 2);
+  gtk_widget_show (hbox);
+
+  view = gimp_view_new_by_types (gimp_get_user_context (shell->display->gimp),
+                                 GIMP_TYPE_VIEW, GIMP_TYPE_IMAGE,
+                                 GIMP_VIEW_SIZE_LARGE, 0, FALSE);
+  gtk_box_pack_start (GTK_BOX (hbox), view, FALSE, FALSE, 0);
+  gtk_widget_show (view);
+
+  image = gimp_display_get_image (shell->display);
+  if (image)
+    gimp_view_set_viewable (GIMP_VIEW (view), GIMP_VIEWABLE (image));
+
+  button = gtk_button_new ();
+  gtk_widget_set_can_focus (button, FALSE);
+  gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
+  gtk_box_pack_start (GTK_BOX (hbox), button, FALSE, FALSE, 0);
+  gtk_widget_show (button);
+
+  gtk_image = gtk_image_new_from_stock (GIMP_STOCK_CLOSE,
+                                        GTK_ICON_SIZE_MENU);
+  gtk_container_add (GTK_CONTAINER (button), gtk_image);
+  gtk_widget_show (gtk_image);
+
+  g_signal_connect_swapped (button, "clicked",
+                            G_CALLBACK (gimp_image_window_shell_close_button_callback),
+                            shell);
+
+  return hbox;
 }

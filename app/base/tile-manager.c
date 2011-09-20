@@ -575,22 +575,6 @@ tile_manager_bpp (const TileManager *tm)
   return tm->bpp;
 }
 
-gint
-tile_manager_tiles_per_col (const TileManager *tm)
-{
-  g_return_val_if_fail (tm != NULL, 0);
-
-  return tm->ntile_cols;
-}
-
-gint
-tile_manager_tiles_per_row (const TileManager *tm)
-{
-  g_return_val_if_fail (tm != NULL, 0);
-
-  return tm->ntile_rows;
-}
-
 gint64
 tile_manager_get_memsize (const TileManager *tm,
                           gboolean           sparse)
@@ -715,13 +699,13 @@ tile_manager_map_over_tile (TileManager *tm,
 }
 
 void
-read_pixel_data (TileManager *tm,
-                 gint         x1,
-                 gint         y1,
-                 gint         x2,
-                 gint         y2,
-                 guchar      *buffer,
-                 guint        stride)
+tile_manager_read_pixel_data (TileManager *tm,
+                              gint         x1,
+                              gint         y1,
+                              gint         x2,
+                              gint         y2,
+                              guchar      *buffer,
+                              guint        stride)
 {
   guint x, y;
 
@@ -757,13 +741,13 @@ read_pixel_data (TileManager *tm,
 }
 
 void
-write_pixel_data (TileManager  *tm,
-                  gint          x1,
-                  gint          y1,
-                  gint          x2,
-                  gint          y2,
-                  const guchar *buffer,
-                  guint         stride)
+tile_manager_write_pixel_data (TileManager  *tm,
+                               gint          x1,
+                               gint          y1,
+                               gint          x2,
+                               gint          y2,
+                               const guchar *buffer,
+                               guint         stride)
 {
   guint x, y;
 
@@ -799,10 +783,10 @@ write_pixel_data (TileManager  *tm,
 }
 
 void
-read_pixel_data_1 (TileManager *tm,
-                   gint         x,
-                   gint         y,
-                   guchar      *buffer)
+tile_manager_read_pixel_data_1 (TileManager *tm,
+                                gint         x,
+                                gint         y,
+                                guchar      *buffer)
 {
   const gint num = tile_manager_get_tile_num (tm, x, y);
 
@@ -850,7 +834,7 @@ read_pixel_data_1 (TileManager *tm,
 }
 
 void
-write_pixel_data_1 (TileManager  *tm,
+tile_manager_write_pixel_data_1 (TileManager  *tm,
                     gint          x,
                     gint          y,
                     const guchar *buffer)

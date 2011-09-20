@@ -35,6 +35,7 @@
 
 static gint                  get_portion_width       (PixelRegionIterator *PRI);
 static gint                  get_portion_height      (PixelRegionIterator *PRI);
+static void                  pixel_regions_free      (PixelRegionIterator *PRI);
 static PixelRegionIterator * pixel_regions_configure (PixelRegionIterator *PRI);
 static void                  pixel_region_configure  (PixelRegionHolder   *PRH,
                                                       PixelRegionIterator *PRI);
@@ -167,7 +168,8 @@ pixel_region_get_row (PixelRegion *PR,
   if (subsample == 1)
     {
       if (PR->tiles)
-        read_pixel_data (PR->tiles, x, y, end - 1, y, data, PR->bytes);
+        tile_manager_read_pixel_data (PR->tiles, x, y, end - 1, y, data,
+                                      PR->bytes);
       else
         memcpy (data, PR->data + x * bpp + y * PR->rowstride, w * bpp);
     }
@@ -206,7 +208,8 @@ pixel_region_set_row (PixelRegion  *PR,
     {
       gint end = x + w;
 
-      write_pixel_data (PR->tiles, x, y, end - 1, y, data, PR->bytes);
+      tile_manager_write_pixel_data (PR->tiles, x, y, end - 1, y, data,
+                                     PR->bytes);
     }
   else
     {
@@ -268,7 +271,7 @@ pixel_region_set_col (PixelRegion  *PR,
   gint end = y + h;
   gint bpp = PR->bytes;
 
-  write_pixel_data (PR->tiles, x, y, x, end-1, data, bpp);
+  tile_manager_write_pixel_data (PR->tiles, x, y, x, end-1, data, bpp);
 }
 
 gboolean
@@ -292,7 +295,6 @@ pixel_regions_register (gint num_regions,
     return NULL;
 
   PRI = g_slice_new0 (PixelRegionIterator);
-  PRI->dirty_tiles = 1;
 
   va_start (ap, num_regions);
 
@@ -362,9 +364,7 @@ pixel_regions_process (PixelRegionIterator *PRI)
               is a tile manager  */
           if (PRH->PR->tiles)
             {
-              /* only set the dirty flag if PRH->dirty_tiles == TRUE */
-              tile_release (PRH->PR->curtile,
-                            PRH->PR->dirty && PRI->dirty_tiles);
+              tile_release (PRH->PR->curtile, PRH->PR->dirty);
               PRH->PR->curtile = NULL;
             }
 
@@ -411,15 +411,7 @@ pixel_regions_process_stop (PixelRegionIterator *PRI)
         }
     }
 
-  if (PRI->pixel_regions)
-    {
-      for (list = PRI->pixel_regions; list; list = g_slist_next (list))
-        g_slice_free (PixelRegionHolder, list->data);
-
-      g_slist_free (PRI->pixel_regions);
-
-      g_slice_free (PixelRegionIterator, PRI);
-    }
+  pixel_regions_free (PRI);
 }
 
 
@@ -511,6 +503,21 @@ get_portion_width (PixelRegionIterator *PRI)
   return min_width;
 }
 
+static void
+pixel_regions_free (PixelRegionIterator *PRI)
+{
+  if (PRI->pixel_regions)
+    {
+      GSList *list;
+
+      for (list = PRI->pixel_regions; list; list = g_slist_next (list))
+        g_slice_free (PixelRegionHolder, list->data);
+
+      g_slist_free (PRI->pixel_regions);
+
+      g_slice_free (PixelRegionIterator, PRI);
+    }
+}
 
 static PixelRegionIterator *
 pixel_regions_configure (PixelRegionIterator *PRI)
@@ -523,15 +530,7 @@ pixel_regions_configure (PixelRegionIterator *PRI)
 
   if (PRI->portion_width  == 0 || PRI->portion_height == 0)
     {
-      /*  free the pixel regions list  */
-      if (PRI->pixel_regions)
-        {
-          for (list = PRI->pixel_regions; list; list = g_slist_next (list))
-            g_slice_free (PixelRegionHolder, list->data);
-
-          g_slist_free (PRI->pixel_regions);
-          g_slice_free (PixelRegionIterator, PRI);
-        }
+      pixel_regions_free (PRI);
 
       return NULL;
     }

@@ -42,7 +42,9 @@ typedef enum
   GIMP_GUIDES_THIRDS,        /*< desc="Rule of thirds"  >*/
   GIMP_GUIDES_FIFTHS,        /*< desc="Rule of fifths"  >*/
   GIMP_GUIDES_GOLDEN,        /*< desc="Golden sections" >*/
-  GIMP_GUIDES_DIAGONALS      /*< desc="Diagonal lines"  >*/
+  GIMP_GUIDES_DIAGONALS,     /*< desc="Diagonal lines"  >*/
+  GIMP_GUIDES_N_LINES,       /*< desc="Number of lines" >*/
+  GIMP_GUIDES_SPACING        /*< desc="Line spacing"    >*/
 } GimpGuidesType;
 
 
@@ -76,6 +78,18 @@ typedef enum
   GIMP_HANDLE_ANCHOR_WEST,
   GIMP_HANDLE_ANCHOR_EAST
 } GimpHandleAnchor;
+
+
+#define GIMP_TYPE_PATH_STYLE (gimp_path_style_get_type ())
+
+GType gimp_path_style_get_type (void) G_GNUC_CONST;
+
+typedef enum
+{
+  GIMP_PATH_STYLE_DEFAULT,
+  GIMP_PATH_STYLE_VECTORS,
+  GIMP_PATH_STYLE_OUTLINE
+} GimpPathStyle;
 
 
 #define GIMP_TYPE_ZOOM_FOCUS (gimp_zoom_focus_get_type ())

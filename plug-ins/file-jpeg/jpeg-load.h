@@ -15,17 +15,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __JPEG_LOAD_H__
+#define __JPEG_LOAD_H__
+
 gint32 load_image           (const gchar  *filename,
                              GimpRunMode   runmode,
                              gboolean      preview,
                              GError      **error);
 
 
-#ifdef HAVE_EXIF
+#ifdef HAVE_LIBEXIF
 
 gint32 load_thumbnail_image (const gchar  *filename,
                              gint         *width,
                              gint         *height,
                              GError      **error);
 
-#endif /* HAVE_EXIF */
+#endif /* HAVE_LIBEXIF */
+
+#endif /* __JPEG_LOAD_H__ */

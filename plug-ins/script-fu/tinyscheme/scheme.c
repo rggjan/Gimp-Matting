@@ -216,7 +216,11 @@ INTERFACE static pointer vector_elem(pointer vec, int ielem);
 INTERFACE static pointer set_vector_elem(pointer vec, int ielem, pointer a);
 INTERFACE INLINE int is_number(pointer p)    { return (type(p)==T_NUMBER); }
 INTERFACE INLINE int is_integer(pointer p) {
-  return is_number(p) && ((p)->_object._number.is_fixnum);
+  if (!is_number(p))
+      return 0;
+  if (num_is_integer(p) || rvalue(p) == round_per_R5RS(rvalue(p)))
+      return 1;
+  return 0;
 }
 
 INTERFACE INLINE int is_real(pointer p) {
@@ -495,7 +499,7 @@ static num num_rem(num a, num b) {
  e1=num_ivalue(a);
  e2=num_ivalue(b);
  res=e1%e2;
- /* modulo should have same sign as second operand */
+ /* remainder should have same sign as second operand */
  if (res > 0) {
      if (e1 < 0) {
         res -= labs(e2);
@@ -517,14 +521,8 @@ static num num_mod(num a, num b) {
  e2=num_ivalue(b);
  res=e1%e2;
  /* modulo should have same sign as second operand */
- if (res > 0) {
-     if (e2 < 0) {
-          res*=-1L;
-     }
- } else {
-     if (e2 > 0) {
-          res*=-1L;
-     }
+ if (res * e2 < 0) {
+   res+=e2;
  }
  ret.value.ivalue=res;
  return ret;
@@ -2133,6 +2131,13 @@ static void atom2str(scheme *sc, pointer l, int f, char **pp, int *plen) {
                snprintf(p, STRBUFFSIZE, "%ld", ivalue_unchecked(l));
           } else {
                snprintf(p, STRBUFFSIZE, "%.10g", rvalue_unchecked(l));
+               /* R5RS says there must be a '.' (unless 'e'?) */
+               f = strcspn(p, ".e");
+               if (p[f] == 0) {
+                    p[f] = '.'; // not found, so add '.0' at the end
+                    p[f+1] = '0';
+                    p[f+2] = 0;
+               }
           }
      } else if (is_string(l)) {
           if (!f) {
@@ -3339,11 +3344,23 @@ static pointer opexe_2(scheme *sc, enum scheme_opcodes op) {
           if(cdr(sc->args)==sc->NIL) {
                Error_0(sc,"expt: needs two arguments");
           } else {
+               double result;
+               int real_result=1;
                pointer y=cadr(sc->args);
+               if (num_is_integer(x) && num_is_integer(y))
+                  real_result=0;
                /* This 'if' is an R5RS compatability fix. */
-               if (rvalue(x) == 0 && rvalue(y) < 0)
-                   s_return(sc, mk_real(sc, 0));
-               s_return(sc, mk_real(sc, pow(rvalue(x),rvalue(y))));
+               /* NOTE: Remove this 'if' fix for R6RS.    */
+               if (rvalue(x) == 0 && rvalue(y) < 0) {
+                  result = 0.0;
+               } else {
+                  result = pow(rvalue(x),rvalue(y));
+               }
+               if (real_result) {
+                  s_return(sc, mk_real(sc, result));
+               } else {
+                  s_return(sc, mk_integer(sc, result));
+               }
           }
 
      case OP_FLOOR:
@@ -3366,8 +3383,11 @@ static pointer opexe_2(scheme *sc, enum scheme_opcodes op) {
      }
 
      case OP_ROUND:
-       x=car(sc->args);
-       s_return(sc, mk_real(sc, round_per_R5RS(rvalue(x))));
+        x=car(sc->args);
+        if (num_is_integer(x))
+            s_return(sc, mk_integer(sc, round_per_R5RS(rvalue(x))));
+        else
+            s_return(sc, mk_real(sc, round_per_R5RS(rvalue(x))));
 #endif
 
      case OP_ADD:        /* + */
@@ -3991,7 +4011,7 @@ static pointer opexe_4(scheme *sc, enum scheme_opcodes op) {
           }
           x=car(sc->args);
           if(cdr(sc->args)==sc->NIL) {
-            s_return(sc,sc->args);
+            s_return(sc,x);
           }
           for (y = cdr(sc->args); y != sc->NIL; y = cdr(y)) {
                x=append(sc,x,car(y));
@@ -4458,7 +4478,8 @@ static pointer opexe_5(scheme *sc, enum scheme_opcodes op) {
                ivalue_unchecked(cdr(sc->args))=i+1;
                s_save(sc,OP_PVECFROM, sc->args, sc->NIL);
                sc->args=elem;
-               putstr(sc," ");
+               if (i > 0)
+                    putstr(sc," ");
                s_goto(sc,OP_P0LIST);
           }
      }

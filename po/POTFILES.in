@@ -6,6 +6,7 @@
 app/about.h
 app/app.c
 app/batch.c
+app/language.c
 app/main.c
 app/sanity.c
 app/version.c
@@ -498,6 +499,3 @@ app/xcf/xcf.c
 data/tags/gimp-tags-default.xml.in
 
 desktop/gimp.desktop.in.in
-
-tools/gimp-remote.c
-tools/gimp-remote-x11.c

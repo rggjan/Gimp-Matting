@@ -32,6 +32,11 @@
 
 #include <gegl.h>
 
+#ifdef G_OS_WIN32
+#include <windows.h>
+#include <winnls.h>
+#endif
+
 #include "libgimpbase/gimpbase.h"
 #include "libgimpconfig/gimpconfig.h"
 
@@ -59,6 +64,7 @@
 #include "batch.h"
 #include "errors.h"
 #include "units.h"
+#include "language.h"
 #include "gimp-debug.h"
 
 #include "gimp-intl.h"
@@ -69,8 +75,6 @@
 static void       app_init_update_noop    (const gchar *text1,
                                            const gchar *text2,
                                            gdouble      percentage);
-static void       app_init_language       (const gchar *language);
-
 static gboolean   app_exit_after_callback (Gimp        *gimp,
                                            gboolean     kill_it,
                                            GMainLoop   *loop);
@@ -188,7 +192,7 @@ app_run (const gchar         *full_prog_name,
   config = GIMP_BASE_CONFIG (gimp->config);
 
   /*  change the locale if a language if specified  */
-  app_init_language (gimp->config->language);
+  language_init (gimp->config->language);
 
   /*  initialize lowlevel stuff  */
   swap_is_ok = base_init (config, be_verbose, use_cpu_accel);
@@ -272,19 +276,6 @@ app_init_update_noop (const gchar *text1,
                       gdouble      percentage)
 {
   /*  deliberately do nothing  */
-}
-
-static void
-app_init_language (const gchar *language)
-{
-  /*  We already set the locale according to the environment, so just
-   *  return early if no language is set in gimprc.
-   */
-  if (! language)
-    return;
-
-  g_setenv ("LANGUAGE", language, TRUE);
-  setlocale (LC_ALL, "");
 }
 
 static gboolean

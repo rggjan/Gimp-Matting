@@ -54,7 +54,7 @@ GimpCanvasItem * gimp_canvas_path_new      (GimpDisplayShell     *shell,
                                             gdouble               x,
                                             gdouble               y,
                                             gboolean              filled,
-                                            gboolean              path_style);
+                                            GimpPathStyle         style);
 
 void             gimp_canvas_path_set      (GimpCanvasItem       *path,
                                             const GimpBezierDesc *bezier);

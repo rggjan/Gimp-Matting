@@ -50,6 +50,8 @@ gimp_guides_type_get_type (void)
     { GIMP_GUIDES_FIFTHS, "GIMP_GUIDES_FIFTHS", "fifths" },
     { GIMP_GUIDES_GOLDEN, "GIMP_GUIDES_GOLDEN", "golden" },
     { GIMP_GUIDES_DIAGONALS, "GIMP_GUIDES_DIAGONALS", "diagonals" },
+    { GIMP_GUIDES_N_LINES, "GIMP_GUIDES_N_LINES", "n-lines" },
+    { GIMP_GUIDES_SPACING, "GIMP_GUIDES_SPACING", "spacing" },
     { 0, NULL, NULL }
   };
 
@@ -61,6 +63,8 @@ gimp_guides_type_get_type (void)
     { GIMP_GUIDES_FIFTHS, NC_("guides-type", "Rule of fifths"), NULL },
     { GIMP_GUIDES_GOLDEN, NC_("guides-type", "Golden sections"), NULL },
     { GIMP_GUIDES_DIAGONALS, NC_("guides-type", "Diagonal lines"), NULL },
+    { GIMP_GUIDES_N_LINES, NC_("guides-type", "Number of lines"), NULL },
+    { GIMP_GUIDES_SPACING, NC_("guides-type", "Line spacing"), NULL },
     { 0, NULL, NULL }
   };
 
@@ -148,6 +152,37 @@ gimp_handle_anchor_get_type (void)
     {
       type = g_enum_register_static ("GimpHandleAnchor", values);
       gimp_type_set_translation_context (type, "handle-anchor");
+      gimp_enum_set_value_descriptions (type, descs);
+    }
+
+  return type;
+}
+
+GType
+gimp_path_style_get_type (void)
+{
+  static const GEnumValue values[] =
+  {
+    { GIMP_PATH_STYLE_DEFAULT, "GIMP_PATH_STYLE_DEFAULT", "default" },
+    { GIMP_PATH_STYLE_VECTORS, "GIMP_PATH_STYLE_VECTORS", "vectors" },
+    { GIMP_PATH_STYLE_OUTLINE, "GIMP_PATH_STYLE_OUTLINE", "outline" },
+    { 0, NULL, NULL }
+  };
+
+  static const GimpEnumDesc descs[] =
+  {
+    { GIMP_PATH_STYLE_DEFAULT, "GIMP_PATH_STYLE_DEFAULT", NULL },
+    { GIMP_PATH_STYLE_VECTORS, "GIMP_PATH_STYLE_VECTORS", NULL },
+    { GIMP_PATH_STYLE_OUTLINE, "GIMP_PATH_STYLE_OUTLINE", NULL },
+    { 0, NULL, NULL }
+  };
+
+  static GType type = 0;
+
+  if (G_UNLIKELY (! type))
+    {
+      type = g_enum_register_static ("GimpPathStyle", values);
+      gimp_type_set_translation_context (type, "path-style");
       gimp_enum_set_value_descriptions (type, descs);
     }
 

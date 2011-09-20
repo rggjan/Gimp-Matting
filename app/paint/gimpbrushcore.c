@@ -297,7 +297,7 @@ gimp_brush_core_pre_paint (GimpPaintCore    *paint_core,
       gdouble scale;
 
       gimp_paint_core_get_last_coords (paint_core, &last_coords);
-      gimp_paint_core_get_current_coords (paint_core, paint_options, &current_coords);
+      gimp_paint_core_get_current_coords (paint_core, &current_coords);
 
       /* If we current point == last point, check if the brush
        * wants to be painted in that case. (Direction dependent
@@ -475,7 +475,7 @@ gimp_brush_core_interpolate (GimpPaintCore    *paint_core,
   g_return_if_fail (GIMP_IS_BRUSH (core->brush));
 
   gimp_paint_core_get_last_coords (paint_core, &last_coords);
-  gimp_paint_core_get_current_coords (paint_core, paint_options, &current_coords);
+  gimp_paint_core_get_current_coords (paint_core, &current_coords);
 
   /*  Zero sized brushes are unfit for interpolate, so we just let
    *  paint core fail on its own
@@ -761,6 +761,7 @@ gimp_brush_core_interpolate (GimpPaintCore    *paint_core,
 
       gimp_paint_core_paint (paint_core, drawable, paint_options,
                              GIMP_PAINT_STATE_MOTION, time);
+
     }
 
   current_coords.x        = last_coords.x        + delta_vec.x;
@@ -797,8 +798,6 @@ gimp_brush_core_get_paint_area (GimpPaintCore    *paint_core,
                                                paint_options,
                                                coords);
     }
-
-  core->scale = gimp_brush_clamp_scale (core->main_brush, core->scale);
 
   gimp_brush_transform_size (core->brush,
                              core->scale, core->aspect_ratio, core->angle,

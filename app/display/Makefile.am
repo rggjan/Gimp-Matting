@@ -63,6 +63,8 @@ libappdisplay_a_sources = \
 	gimpcanvassamplepoint.h			\
 	gimpcanvastextcursor.c			\
 	gimpcanvastextcursor.h			\
+	gimpcanvastransformguides.c		\
+	gimpcanvastransformguides.h		\
 	gimpcanvastransformpreview.c		\
 	gimpcanvastransformpreview.h		\
 	gimpcursorview.c			\
@@ -131,14 +133,20 @@ libappdisplay_a_sources = \
 	gimpimagewindow.h			\
 	gimpmotionbuffer.c			\
 	gimpmotionbuffer.h			\
+	gimpmultiwindowstrategy.c		\
+	gimpmultiwindowstrategy.h		\
 	gimpnavigationeditor.c			\
 	gimpnavigationeditor.h			\
 	gimpscalecombobox.c			\
 	gimpscalecombobox.h			\
+	gimpsinglewindowstrategy.c		\
+	gimpsinglewindowstrategy.h		\
 	gimpstatusbar.c				\
 	gimpstatusbar.h				\
 	gimptooldialog.c			\
-	gimptooldialog.h
+	gimptooldialog.h			\
+	gimpwindowstrategy.c			\
+	gimpwindowstrategy.h
 
 libappdisplay_a_built_sources = display-enums.c
 
